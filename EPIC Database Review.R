@@ -114,17 +114,84 @@ count_of_projects_by_lead <- Projects_overview %>%
   summarise(Count = n())
 
 #In this, the way the data has been reported in a way that the same organization has different number of projects because of different naming styles (eg: PG&E and Pacific Gas and Electric)
+#Too many edge cases to handle - ask BK and/or HL about this
 
 # table of ProgramAdminName and count of projects, identify difference between this variable and ProjectLead - Green
+count_of_projects_by_admin <- Projects_overview %>%
+  filter(!is.na(ProgramAdminName)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(Count = n())
+
+#It's definitely easier to count projects based on ProgramAdmin because there are four major overseers here - interesting to note here is that the utilities have offloaded some of the projects to smaller orgs, 
+#making a strong case as theorized by BK that the observations in the ProjectLead variable are program implementers and the ProgramAdmin folks are the overall administrators/overseers
 
 # percent of projects active/closed/pending - Green
+percent_of_projects_by_status <- Projects_overview %>%
+  filter(!is.na(ProjectStatus)) %>%
+  group_by(ProjectStatus) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
 
+# percent of projects listed as IsActive = TRUE but ProjectStatus = Closed, consider projectenddate, general exploration of status and date reporting discrepancies - Green
 
-# percent listed as IsActive = TRUE but ProjectStatus = Closed, consider projectenddate, general exploration of status and date reporting discrepancies - Green
+projects_active_closed <- Projects_overview %>%
+  filter(IsActive == TRUE, ProjectStatus == "Closed") %>%
+  summarise(percentage = (n() / nrow(Projects_overview)) * 100)
+
+projects_active_closed_by_org <- Projects_overview %>%
+  group_by(ProgramAdminName) %>%
+  filter(IsActive == TRUE, ProjectStatus == "Closed") %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+#All of the projects listed as active but closed should be listed as inactive (all of the project end dates have passed)
+# When split by org, the CEC has the most projects that face this contradiction, followed by PG&E, SDG&E, and SCE
 
 # percent start and end dates populated, average duration of project - Green
+projects_start_end <- Projects_overview %>%
+  filter(!is.na(ProjectStartDate) & !is.na(ProjectEndDate)) %>%
+  summarise(percentage = (n() / nrow(Projects_overview)) * 100)
 
+# Inspect the date format
+head(Projects_overview$ProjectStartDate)
+head(Projects_overview$ProjectEndDate)
+
+# Assuming the date format is "MM/DD/YYYY" or similar, specify the format
+average_project_duration <- Projects_overview %>%
+  filter(!is.na(ProjectStartDate) & !is.na(ProjectEndDate)) %>%
+  mutate(ProjectStartDate = as.Date(ProjectStartDate, format = "%m/%d/%Y"),
+         ProjectEndDate = as.Date(ProjectEndDate, format = "%m/%d/%Y"),
+         ProjectDuration = as.numeric(ProjectEndDate - ProjectStartDate)/7) %>%
+  summarise(AverageDuration = mean(ProjectDuration, na.rm = TRUE))
+  
 # percent of projects with contact info provided (name and email), any differences by program admin (i.e. which admins are best at reporting this?)
+projects_contact_info <- Projects_overview %>%
+  filter(!is.na(PersonContactFirstName) & !is.na(PersonContactLastName) & !is.na(PersonContactEmail)) %>%
+  summarise(percentage = (n() / nrow(Projects_overview)) * 100)
+
+projects_contact_info_by_org <- Projects_overview %>%
+  group_by(ProgramAdminName) %>%
+  filter(!is.na(PersonContactFirstName) & !is.na(PersonContactLastName) & !is.na(PersonContactEmail)) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+#81 percent of projects had contact info (name and email)
+#PG&E and CEC were the only two program admins that were relatively consistent with providing contact info on their projects (name AND email)
+#SCE (n = 23) was more consistent in giving out names than SDG&E
+#SDG&E had no information at all (n = 27) compared to SCE
 
 # percent of projects with cec manager contact info provided (name and email), any differences by program admin (i.e. which admins are best at reporting this?)
+projects_CEC_contact_info <- Projects_overview %>%
+  filter(!is.na(CecMgrContactFirstName) & !is.na(CecMgrContactLastName) & !is.na(CecMgrEmail)) %>%
+  summarise(percentage = (n() / nrow(Projects_overview)) * 100)
 
+projects_CEC_contact_info_by_org <- Projects_overview %>%
+  group_by(ProgramAdminName) %>%
+  filter(!is.na(CecMgrContactFirstName) & !is.na(CecMgrContactLastName) & !is.na(CecMgrEmail)) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+#80 percent of projects had CEC contact info (name and email)
+#CEC was the only program admin that provided both name and email 
+#PG&E and SCE did provide names (but the way they reported it-first and last names were together in the CecMgrContactFirstName column)
+#SDG&E either left it blank or the projects that they worked on did not have CEC involvement, so NA (N = 4)
