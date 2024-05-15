@@ -195,3 +195,294 @@ projects_CEC_contact_info_by_org <- Projects_overview %>%
 #CEC was the only program admin that provided both name and email 
 #PG&E and SCE did provide names (but the way they reported it-first and last names were together in the CecMgrContactFirstName column)
 #SDG&E either left it blank or the projects that they worked on did not have CEC involvement, so NA (N = 4)
+
+### Projects Detail ###
+
+Projects_detail <- Projects_detail %>%
+  left_join(Projects_overview, by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
+
+Projects_detail <-  Projects_detail %>%
+  rename(IsActive_details = IsActive.x, IsActive_overview = IsActive.y)
+
+         
+# check if Projectid and ProjectNo match Id and ProjectNo column on Projects tab - Green
+# distinct_ids_detail <- Projects_detail %>%
+#   distinct(ProjectId)
+# 
+# distinct_projectno_detail <- Projects_detail %>%
+#   distinct(ProjectNo) %>%
+#   filter(!is.na(ProjectNo))
+# 
+# unmatched_projects <- Projects_detail %>%
+#   filter(is.na(ProjectId) | is.na(ProjectNo))
+
+Projects_check <- Projects_overview %>%
+  rename(Projects_Id = Id)
+
+# Perform left join to check if ProjectId and ProjectNo match Projects_Id and ProjectNo
+matched_projects <- Projects_detail %>%
+  left_join(Projects_check, by = c("ProjectId" = "Projects_Id", "ProjectNo" = "ProjectNo"))
+
+# Compare the Id and ProjectNo columns to check for matches
+matched_projects <- matched_projects %>%
+  mutate(Id_Match = ifelse(!is.na(Projects_Id), TRUE, FALSE),
+         ProjectNo_Match = ifelse(!is.na(ProjectNo), TRUE, FALSE))
+
+
+#Ask BK how to do this
+
+#Note: Slight discrepancies to note here: there are 620 unique project IDs in the overview but the number decreases slightly to 612 here
+#611 projects in the overview but 603 here 
+
+# percent of projects with detailed project description - Green
+
+project_description_pct <- Projects_detail %>%
+  filter(!is.na(DetailedProjectDescription)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+project_description_pct_by_org <- Projects_detail %>%
+  filter(!is.na(DetailedProjectDescription)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+  
+#There are 182 projects that have a project description out of the 612 listed 
+#ask BK this - excel says there are 171 projects but here it says 182
+
+# percent of projects with project summary, are there any themes among blank projects? what is their status? - Green
+project_summary_pct <- Projects_detail %>%
+  filter(!is.na(ProjectSummary)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+project_summary_pct_by_org <- Projects_detail %>%
+  filter(!is.na(ProjectSummary)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_projects_by_org_status <- Projects_detail %>%
+  filter(is.na(ProjectSummary)) %>%
+  group_by(ProgramAdminName, IsActive_details) %>%
+  summarise(n = n(), .groups = 'drop')
+  
+#98 percent of the projects at least had a project summary
+#For the remaining 2 percent (n= 12), ten of them were still technically active - all of them belonged to the CEC
+
+# percent of projects with project update, are there any themes among blank projects? - Green
+project_update_pct <- Projects_detail %>%
+  filter(!is.na(ProjectUpdate)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+project_update_pct_by_org <- Projects_detail %>%
+  filter(!is.na(ProjectUpdate)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_projects_update_by_org_status <- Projects_detail %>%
+  filter(is.na(ProjectUpdate)) %>%
+  group_by(ProgramAdminName, IsActive_details) %>%
+  summarise(n = n(), .groups = 'drop')
+
+#73 percent of the projects had a project update
+#For the remaining (n = 167), the majority (n = 137) were no longer active - belonged to a variety of orgs (PG&E was the only one where all the projects were inactive)
+
+# percent of projects with deliverables, are there any themes among blank projects? - Green 
+project_deliverable_pct <- Projects_detail %>%
+  filter(!is.na(Deliverables)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+#203 vs 214 - bring up with BK
+
+project_deliverable_pct_by_org <- Projects_detail %>%
+  filter(!is.na(Deliverables)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_projects_deliverable_by_org_status <- Projects_detail %>%
+  filter(is.na(Deliverables)) %>%
+  group_by(ProgramAdminName, IsActive_details) %>%
+  summarise(n = n(), .groups = 'drop')
+
+#34 percent have deliverables listed
+#For the remaining (n = 410), the majority (n = 375) were no longer active - all belonged to cec
+
+#Note: Excel is wonky and it's throwing me off too - bring up with BK
+
+# lower priority: percent of projects with StatePolicySupportText, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers, GettingToScale, KeyInnovations, KeyLearnings, Scalability - red
+
+#State Policy Support
+statepolicy_pct <- Projects_detail %>%
+  filter(!is.na(StatePolicySupportText)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+statepolicy_pct_by_org <- Projects_detail %>%
+  filter(!is.na(StatePolicySupportText)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_statepolicy_by_org_status <- Projects_detail %>%
+  filter(is.na(StatePolicySupportText)) %>%
+  group_by(ProgramAdminName, IsActive_details) %>%
+  summarise(n = n(), .groups = 'drop')
+  
+#Only 18 percent have state policy support text
+#Interestingly enough, the utilities are the ones that have a plurality of projects that have said text (PG&E has the most with 36%)
+#Among those that are blank, the majority (93%) are no longer active
+
+#TechnicalBarriers
+techbarriers_pct <- Projects_detail %>%
+  filter(!is.na(TechnicalBarriers)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+techbarriers_pct_by_org <- Projects_detail %>%
+  filter(!is.na(TechnicalBarriers)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_techbarriers_by_org_status <- Projects_detail %>%
+  filter(is.na(TechnicalBarriers)) %>%
+  group_by(ProgramAdminName, IsActive_details) %>%
+  summarise(n = n(), .groups = 'drop')
+
+#40 percent mentioned technical barriers
+#CEC has the majority that mentioned technical barriers (53%)
+#Among those that are blank, the majority (91%) are no longer active - belongs to CEC
+
+#MarketBarriers
+marketbarriers_pct <- Projects_detail %>%
+  filter(!is.na(MarketBarriers)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+marketbarriers_pct_by_org <- Projects_detail %>%
+  filter(!is.na(MarketBarriers)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_marketbarriers_by_org_status <- Projects_detail %>%
+  filter(is.na(MarketBarriers)) %>%
+  group_by(ProgramAdminName, IsActive_details) %>%
+  summarise(n = n(), .groups = 'drop')
+
+#27 percent mentioned market barriers
+#CEC has the majority that mentioned market barriers (64%)
+#Among those that are blank, the majority (92%) are no longer active 
+
+#PolicyAndRegulatoryBarriers
+policybarriers_pct <- Projects_detail %>%
+  filter(!is.na(PolicyAndRegulatoryBarriers)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+policybarriers_pct_by_org <- Projects_detail %>%
+  filter(!is.na(PolicyAndRegulatoryBarriers)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_policybarriers_by_org_status <- Projects_detail %>%
+  filter(is.na(PolicyAndRegulatoryBarriers)) %>%
+  group_by(ProgramAdminName, IsActive_details) %>%
+  summarise(n = n(), .groups = 'drop')
+
+#24 percent mentioned policy barriers
+#CEC has the majority that mentioned policy barriers (66%)
+#Among those that are blank, the majority (92%) are no longer active
+
+#GettingToScale
+g2s_pct <- Projects_detail %>%
+  filter(!is.na(GettingToScale)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+g2s_pct_by_org <- Projects_detail %>%
+  filter(!is.na(GettingToScale)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+g2s_blank_by_org_status <- Projects_detail %>%
+  filter(is.na(GettingToScale)) %>%
+  group_by(ProgramAdminName, IsActive_details) %>%
+  summarise(n = n(), .groups = 'drop')
+
+#39 percent mentioned ways of getting to scale
+#CEC has the majority that mentioned ways of getting to scale (54%)
+#Among those that are blank, the majority (90%) are no longer active
+
+#KeyInnovations
+innovations_pct <- Projects_detail %>%
+  filter(!is.na(KeyInnovations)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+innovations_by_org <- Projects_detail %>%
+  filter(!is.na(KeyInnovations)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+innovations_blank_by_org_status <- Projects_detail %>%
+  filter(is.na(KeyInnovations)) %>%
+  group_by(ProgramAdminName, IsActive_details) %>%
+  summarise(n = n(), .groups = 'drop')
+
+#43 percent mentioned key innovations
+#CEC has the majority that mentioned key innovations (57%)
+#Among those that are blank, the majority (90%) are no longer active
+
+#KeyLeanings
+leanings_pct <- Projects_detail %>%
+  filter(!is.na(KeyLeanings)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+leanings_by_org <- Projects_detail %>%
+  filter(!is.na(KeyLeanings)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+leanings_blank_by_org_status <- Projects_detail %>%
+  filter(is.na(KeyLeanings)) %>%
+  group_by(ProgramAdminName, IsActive_details) %>%
+  summarise(n = n(), .groups = 'drop')
+
+#28 percent mentioned key leanings
+#CEC has the plurality of projects that mentioned key leanings (44%)
+#Among those that are blank, the majority (96%) are no longer active
+
+#Scalability
+scalability_pct <- Projects_detail %>%
+  filter(!is.na(Scalability)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+scalability_by_org <- Projects_detail %>%
+  filter(!is.na(Scalability)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+scalability_blank_by_org_status <- Projects_detail %>%
+  filter(is.na(Scalability)) %>%
+  group_by(ProgramAdminName, IsActive_details) %>%
+  summarise(n = n(), .groups = 'drop')
+
+# Does IsActive column match same column on Projects tab? - yellow
+matched_projects <- Projects_detail %>%
+  left_join(Projects, by = c("ProjectId" = "Projects_Id", "ProjectNo" = "ProjectNo"))
+
+# Compare the IsActive columns
+matched_projects_activity <- Projects_detail %>%
+  mutate(IsActive_Match = ifelse(IsActive_overview == IsActive_details, TRUE, FALSE))
+
+# View the result
+view <- print(matched_projects_activity %>% select(ProjectId, ProjectNo, IsActive_overview, IsActive_details, IsActive_Match))
+summary_isactive_match <- view %>%
+  summarise(
+    Total = n(),
+    Matches = sum(IsActive_Match, na.rm = TRUE),
+    Mismatches = sum(!IsActive_Match, na.rm = TRUE)
+  )
+
+#Ask BK if he thinks this is right
