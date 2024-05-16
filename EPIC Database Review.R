@@ -16,16 +16,17 @@ Projects_metric <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database 
 ### Project overview checks ###
 # how many distinct Ids, ProjectNo, ProjectName, any discrepancies - Green 
 
-distinct_ids <- Projects_overview %>%
-  distinct(Id)
+distinct_ids_overview <- Projects_overview %>%
+  filter(!is.na(Id)) %>%
+  summarise(num_distinct_ids = n_distinct(Id))
 
-distinct_projectno <- Projects_overview %>%
-  distinct(ProjectNo) %>%
-  filter(!is.na(ProjectNo))
+distinct_projectno_overview <- Projects_overview %>%
+  filter(!is.na(ProjectNo)) %>%
+  summarise(num_distinct_projectno = n_distinct(ProjectNo))
 
-distinct_name <- Projects_overview %>%
-  distinct(ProjectName) %>%
-  filter(!is.na(ProjectName))
+distinct_projectname_overview <- Projects_overview %>%
+  filter(!is.na(ProjectName)) %>%
+  summarise(num_distinct_projectname = n_distinct(ProjectName))
 
 #Note: Slight discrepancies to note here: there are 620 unique project IDs but the number decreases slightly to 611 project nos. (there were some NAs here)
 #and to 613 project names
@@ -135,15 +136,20 @@ percent_of_projects_by_status <- Projects_overview %>%
 # percent of projects listed as IsActive = TRUE but ProjectStatus = Closed, consider projectenddate, general exploration of status and date reporting discrepancies - Green
 
 projects_active_closed <- Projects_overview %>%
+  filter(!is.na(ProjectStatus),
+         !is.na(IsActive)) %>%
   filter(IsActive == TRUE, ProjectStatus == "Closed") %>%
   summarise(percentage = (n() / nrow(Projects_overview)) * 100)
 
 projects_active_closed_by_org <- Projects_overview %>%
+  filter(!is.na(ProjectStatus),
+         !is.na(IsActive)) %>%
   group_by(ProgramAdminName) %>%
   filter(IsActive == TRUE, ProjectStatus == "Closed") %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
 
+#54 percent have this contradiction
 #All of the projects listed as active but closed should be listed as inactive (all of the project end dates have passed)
 # When split by org, the CEC has the most projects that face this contradiction, followed by PG&E, SDG&E, and SCE
 
@@ -164,6 +170,9 @@ average_project_duration <- Projects_overview %>%
          ProjectDuration = as.numeric(ProjectEndDate - ProjectStartDate)/7) %>%
   summarise(AverageDuration = mean(ProjectDuration, na.rm = TRUE))
   
+#91 percent of projects have populated start and edn dates 
+#198 weeks(3.8 years) is the avg project duration
+
 # percent of projects with contact info provided (name and email), any differences by program admin (i.e. which admins are best at reporting this?)
 projects_contact_info <- Projects_overview %>%
   filter(!is.na(PersonContactFirstName) & !is.na(PersonContactLastName) & !is.na(PersonContactEmail)) %>%
@@ -528,7 +537,7 @@ zero_committed_amount <- Finance_detail %>%
 )
 
 zero_committed_amount_by_org <- Finance_detail %>%
-  filter(!is.na(CommitedFundingAmount)) %>%
+  filter(is.na(CommitedFundingAmount)) %>%
   group_by(ProgramAdminName) %>%
   summarise(
     total_entries = n(),
