@@ -470,7 +470,7 @@ scalability_blank_by_org_status <- Projects_detail %>%
 
 # Does IsActive column match same column on Projects tab? - yellow
 matched_projects <- Projects_detail %>%
-  left_join(Projects, by = c("ProjectId" = "Projects_Id", "ProjectNo" = "ProjectNo"))
+  left_join(Projects_overview, by = c("ProjectId" = "Projects_Id", "ProjectNo" = "ProjectNo"))
 
 # Compare the IsActive columns
 matched_projects_activity <- Projects_detail %>%
@@ -482,9 +482,11 @@ summary_isactive_match <- view %>%
   summarise(
     Total = n(),
     Matches = sum(IsActive_Match, na.rm = TRUE),
-    Mismatches = sum(!IsActive_Match, na.rm = TRUE)
+    Mismatches = sum(!IsActive_Match, na.rm = TRUE), 
+    percentage_match = Matches/Total*100
   )
 
+#According to this, only 13 percent match
 #Ask BK if he thinks this is right
 
 ### Finance Detail ###
@@ -611,3 +613,256 @@ summary_matched_amounts <- view_amount %>%
   )
 
 #82 percent of the Contract Amounts in both tabs match
+#Ask BK if he thinks this is right
+
+### Project Metric ###
+
+Projects_metric <- Projects_metric %>%
+  left_join(Projects_overview, by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
+
+Projects_metric <- Projects_metric %>%
+  rename(IsActive_metric = IsActive.x, IsActive_overview = IsActive.y)
+
+#how many distinct Projectid and ProjectNo
+distinct_ids_metric <- Projects_metric %>%
+  summarise(num_distinct_ids = n_distinct(ProjectId))
+
+distinct_projectno_metric <- Projects_metric %>%
+  summarise(num_distinct_projectno = n_distinct(ProjectNo))
+
+#619 distinct ids 
+#611 distinct project numbers
+
+
+#check if Projectid and ProjectNo match other tabs
+#Ask BK
+
+# percent of projects reporting each impact (ElectricitySystemReliabilityImpacts:InformationDissemination)
+
+# ElectricitySystemReliabilityImpacts
+reli_impacts_pct <- Projects_metric %>%
+  filter(!is.na(ElectricitySystemReliabilityImpacts)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+reli_impacts_pct_by_org <- Projects_metric %>%
+  filter(!is.na(ElectricitySystemReliabilityImpacts)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_reli_impacts_pct_by_org_status <- Projects_metric %>%
+  filter(!is.na(ElectricitySystemReliabilityImpacts)) %>%
+  group_by(ProgramAdminName, IsActive_metric) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+#25 percent mentioned reliability impacts
+#CEC has the plurality of respondents that mentioned reliability impacts (28%)
+#Among those that are blank, the majority (96%) were still active
+
+# ElectricitySystemSafetyImpacts
+
+safety_impacts_pct <- Projects_metric %>%
+  filter(!is.na(ElectricitySystemSafetyImpacts)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+safety_impacts_pct_by_org <- Projects_metric %>%
+  filter(!is.na(ElectricitySystemSafetyImpacts)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_safety_impacts_pct_by_org_status <- Projects_metric %>%
+  filter(!is.na(ElectricitySystemSafetyImpacts)) %>%
+  group_by(ProgramAdminName, IsActive_metric) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+#18 percent mentioned safety impacts
+#CEC and PG&E tied for having the plurality of respondents that mentioned safety impacts (27% each)
+#Among those that are blank, the majority (95%) were still active
+
+# EnviromentalImpactsNonGHG
+enviro_impacts_pct <- Projects_metric %>%
+  filter(!is.na(EnviromentalImpactsNonGHG)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+enviro_impacts_pct_by_org <- Projects_metric %>%
+  filter(!is.na(EnviromentalImpactsNonGHG)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_enviro_impacts_pct_by_org_status <- Projects_metric %>%
+  filter(!is.na(EnviromentalImpactsNonGHG)) %>%
+  group_by(ProgramAdminName, IsActive_metric) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+#36 percent mentioned environmental impacts
+#CEC had the majority of respondents that mentioned environmental impacts (88%)
+#Among those that are blank, all were active
+
+# ProjectedProjectBenefits
+proj_benefits_pct <- Projects_metric %>%
+  filter(!is.na(ProjectedProjectBenefits)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+proj_benefits_pct_by_org <- Projects_metric %>%
+  filter(!is.na(ProjectedProjectBenefits)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_proj_benefits_pct_by_org_status <- Projects_metric %>%
+  filter(!is.na(ProjectedProjectBenefits)) %>%
+  group_by(ProgramAdminName, IsActive_metric) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+#89 percent mentioned project benefits
+#CEC had the majority of respondents that mentioned project benefits (78%)
+#Among those that are blank, the majority (98%) were active
+
+# RatePayersBenefits
+rp_benefits_pct <- Projects_metric %>%
+  filter(!is.na(RatePayersBenefits)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+rp_benefits_pct_by_org <- Projects_metric %>%
+  filter(!is.na(RatePayersBenefits)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_rp_benefits_pct_by_org_status <- Projects_metric %>%
+  filter(!is.na(RatePayersBenefits)) %>%
+  group_by(ProgramAdminName, IsActive_metric) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+#20 percent mentioned ratepayer benefits
+#CEC had the plurality of respondents that mentioned ratepayer benefits (44%)
+#Among those that are blank, the majority (98%) were active
+
+# CommunityBenefitsDesc
+community_benefits_pct <- Projects_metric %>%
+  filter(!is.na(CommunityBenefitsDesc)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+community_benefits_pct_by_org <- Projects_metric %>%
+  filter(!is.na(CommunityBenefitsDesc)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_community_benefits_pct_by_org_status <- Projects_metric %>%
+  filter(!is.na(CommunityBenefitsDesc)) %>%
+  group_by(ProgramAdminName, IsActive_metric) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+#Only 6 percent provided a description for community benefits
+#SDG&E had the plurality of projects that mentioned community benefits (49%)
+#Among those that are blank, the majority (91%) were active
+
+# EnergyImpacts
+energy_impacts_pct <- Projects_metric %>%
+  filter(!is.na(EnergyImpacts)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+energy_impacts_pct_by_org <- Projects_metric %>%
+  filter(!is.na(EnergyImpacts)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_energy_impacts_pct_by_org_status <- Projects_metric %>%
+  filter(!is.na(EnergyImpacts)) %>%
+  group_by(ProgramAdminName, IsActive_metric) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+#Only 4 percent mentioned energy impacts
+#SDG&E had the plurality of projects that mentioned energy impacts impacts (44%)
+#Among those that are blank, 96 percent were active
+
+# InfrastructureCostBenefits
+infra_cb_pct <- Projects_metric %>%
+  filter(!is.na(InfrastructureCostBenefits)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+infra_cb_pct_by_org <- Projects_metric %>%
+  filter(!is.na(InfrastructureCostBenefits)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_infra_cb_pct_by_org_status <- Projects_metric %>%
+  filter(!is.na(InfrastructureCostBenefits)) %>%
+  group_by(ProgramAdminName, IsActive_metric) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+#Only 22 percent mentioned infrastructure benefits
+#CEC had the plurality of projects that mentioned infrastructure benefits (49%)
+#Among those that are blank, 98 percent were active
+
+# OtherImpacts
+other_impacts_pct <- Projects_metric %>%
+  filter(!is.na(OtherImpacts)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+other_impacts_pct_by_org <- Projects_metric %>%
+  filter(!is.na(OtherImpacts)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_other_impacts_pct_by_org_status <- Projects_metric %>%
+  filter(!is.na(OtherImpacts)) %>%
+  group_by(ProgramAdminName, IsActive_metric) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+#Only 4 percent mentioned other impacts
+#SCE had the plurality of projects that mentioned other impacts (44%)
+#Among those that are blank, all were still active
+
+# InformationDissemination
+info_pct <- Projects_metric %>%
+  filter(!is.na(InformationDissemination)) %>%
+  summarise(percentage = (n() / nrow(Projects_detail)) * 100)
+
+info_pct_by_org <- Projects_metric %>%
+  filter(!is.na(InformationDissemination)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+blank_info_pct_by_org_status <- Projects_metric %>%
+  filter(!is.na(InformationDissemination)) %>%
+  group_by(ProgramAdminName, IsActive_metric) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  mutate(pct = n / sum(n) * 100)
+
+#Only 13 percent mentioned dissemination of info
+#PG&E had the plurality of projects that mentioned information dissemination (46%)
+#Among those that are blank, 99 percent were still active
+
+# Does IsActive column match same column on other tabs?
+matched_projects_metric <- Projects_metric %>%
+  mutate(IsActive_Match = ifelse(IsActive_overview == IsActive_metric, TRUE, FALSE))
+
+# View the result
+view_metric <- print(matched_projects_metric %>% select(ProjectId, ProjectNo, IsActive_overview, IsActive_metric, IsActive_Match))
+summary_isactive_match_metric <- view_metric %>%
+  summarise(
+    Total = n(),
+    Matches = sum(IsActive_Match, na.rm = TRUE),
+    Mismatches = sum(!IsActive_Match, na.rm = TRUE), 
+    percentage_match = Matches/Total*100
+  )
+
+#Only 2 mismatches: pretty much 100% 
+#Ask BK though
