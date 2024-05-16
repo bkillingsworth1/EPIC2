@@ -53,6 +53,7 @@ multiphase_projects <- projects %>%
 # Group and Filter: The data is grouped by BaseProjectNo, and projects with more than one entry are filtered and kept.
 # Count Unique Base Projects: The number of unique base project identifiers is counted.
 #Ask BK about this because this is very confusing 
+#Probably best to do it in Excel - pause for now and ask KP on Tuesday about how much he wants it
 
 # average contract amount, removing zeros/NAs 
 filtered_projects <- Projects_overview %>%
@@ -124,7 +125,7 @@ count_of_projects_by_admin <- Projects_overview %>%
   summarise(Count = n())
 
 #It's definitely easier to count projects based on ProgramAdmin because there are four major overseers here - interesting to note here is that the utilities have offloaded some of the projects to smaller orgs, 
-#making a strong case as theorized by BK that the observations in the ProjectLead variable are program implementers and the ProgramAdmin folks are the overall administrators/overseers
+#making a strong case as theorized by BK that the observations in the ProjectLead variable are program implementers/consultants and the ProgramAdmin folks are the overall administrators/overseers
 
 # percent of projects active/closed/pending - Green
 percent_of_projects_by_status <- Projects_overview %>%
@@ -208,22 +209,13 @@ projects_CEC_contact_info_by_org <- Projects_overview %>%
 ### Projects Detail ###
 
 Projects_detail <- Projects_detail %>%
-  left_join(Projects_overview, by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
+  left_join(Projects_overview %>% select(Id, ProjectNo, ProgramAdminName, IsActive), by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
 
 Projects_detail <-  Projects_detail %>%
   rename(IsActive_details = IsActive.x, IsActive_overview = IsActive.y)
 
          
 # check if Projectid and ProjectNo match Id and ProjectNo column on Projects tab - Green
-# distinct_ids_detail <- Projects_detail %>%
-#   distinct(ProjectId)
-# 
-# distinct_projectno_detail <- Projects_detail %>%
-#   distinct(ProjectNo) %>%
-#   filter(!is.na(ProjectNo))
-# 
-# unmatched_projects <- Projects_detail %>%
-#   filter(is.na(ProjectId) | is.na(ProjectNo))
 
 Projects_check <- Projects_overview %>%
   rename(Projects_Id = Id)
@@ -239,6 +231,14 @@ matched_projects <- matched_projects %>%
 
 
 #Ask BK how to do this
+distinct_ids_detail <- Projects_detail %>%
+  filter(!is.na(ProjectId)) %>%
+  summarise(num_distinct_ids = n_distinct(ProjectId))
+
+distinct_projectno_detail <- Projects_detail %>%
+  filter(!is.na(ProjectNo)) %>%
+  summarise(num_distinct_projectno = n_distinct(ProjectNo))
+
 
 #Note: Slight discrepancies to note here: there are 620 unique project IDs in the overview but the number decreases slightly to 612 here
 #611 projects in the overview but 603 here 
@@ -479,7 +479,7 @@ scalability_blank_by_org_status <- Projects_detail %>%
 
 # Does IsActive column match same column on Projects tab? - yellow
 matched_projects <- Projects_detail %>%
-  left_join(Projects_overview, by = c("ProjectId" = "Projects_Id", "ProjectNo" = "ProjectNo"))
+  left_join(Projects_overview, by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
 
 # Compare the IsActive columns
 matched_projects_activity <- Projects_detail %>%
@@ -495,21 +495,21 @@ summary_isactive_match <- view %>%
     percentage_match = Matches/Total*100
   )
 
-#According to this, only 13 percent match
-#Ask BK if he thinks this is right
+#According to this, 13 percent matches
+#Huge discrepancy
 
 ### Finance Detail ###
-Finance_detail <- Finance_detail %>%
+Finance_detail_check <- Finance_detail %>%
   left_join(Projects_overview, by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
 
-Finance_detail <-  Finance_detail %>%
+Finance_detail_check <-  Finance_detail_check %>%
   rename(ContractAmount_details = ContractAmount.x, ContractAmount_overview = ContractAmount.y)
 
 #how many distinct Projectid and ProjectNo
-distinct_ids_finance <- Finance_detail %>%
+distinct_ids_finance <- Finance_detail_check %>%
   summarise(num_distinct_ids = n_distinct(ProjectId))
 
-distinct_projectno_finance <- Finance_detail %>%
+distinct_projectno_finance <- Finance_detail_check %>%
   summarise(num_distinct_projectno = n_distinct(ProjectNo))
 
 #612 distinct ids 
@@ -555,7 +555,7 @@ zero_committed_amount_by_org <- Finance_detail %>%
 # Funds Expended is the spent part of the budget.
 #Mathematical formula to check for (discuss with BK though): FE < Committed + encumbered
 
-budget_check <- Finance_detail %>%
+budget_check <- Finance_detail_check %>%
   filter(
     !is.na(CommitedFundingAmount) & CommitedFundingAmount != 0,
     !is.na(FundsExpendedToDate) & FundsExpendedToDate != 0,
@@ -608,7 +608,7 @@ zero_expended_amount_by_org <- Finance_detail %>%
 
 
 #Does ContractAmount match same column on Projects tab? 
-matched_amounts <- Finance_detail %>%
+matched_amounts <- Finance_detail_check %>%
   mutate(Matched_Amounts = ifelse(ContractAmount_details == ContractAmount_overview, TRUE, FALSE))
 
 # View the result
