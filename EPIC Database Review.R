@@ -171,7 +171,7 @@ average_project_duration <- Projects_overview %>%
          ProjectDuration = as.numeric(ProjectEndDate - ProjectStartDate)/7) %>%
   summarise(AverageDuration = mean(ProjectDuration, na.rm = TRUE))
   
-#91 percent of projects have populated start and edn dates 
+#91 percent of projects have populated start and end dates 
 #198 weeks(3.8 years) is the avg project duration
 
 # percent of projects with contact info provided (name and email), any differences by program admin (i.e. which admins are best at reporting this?)
