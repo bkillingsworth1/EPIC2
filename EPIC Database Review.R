@@ -486,3 +486,128 @@ summary_isactive_match <- view %>%
   )
 
 #Ask BK if he thinks this is right
+
+### Finance Detail ###
+Finance_detail <- Finance_detail %>%
+  left_join(Projects_overview, by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
+
+Finance_detail <-  Finance_detail %>%
+  rename(ContractAmount_details = ContractAmount.x, ContractAmount_overview = ContractAmount.y)
+
+#how many distinct Projectid and ProjectNo
+distinct_ids_finance <- Finance_detail %>%
+  summarise(num_distinct_ids = n_distinct(ProjectId))
+
+distinct_projectno_finance <- Finance_detail %>%
+  summarise(num_distinct_projectno = n_distinct(ProjectNo))
+
+#612 distinct ids 
+#604 distinct project numbers
+
+#check if Projectid and ProjectNo match other tabs
+
+
+#what is average CommitedFundingAmount? Percent reporting zero? Which projects are reporting zero?
+avg_committed_amount <- Finance_detail %>%
+  filter(!is.na(CommitedFundingAmount) & CommitedFundingAmount != 0) %>%
+  summarise(AverageCommittedAmount = mean(CommitedFundingAmount, na.rm = TRUE))
+
+avg_committed_amount_by_org <- Finance_detail %>%
+  filter(!is.na(CommitedFundingAmount) & CommitedFundingAmount != 0) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(AverageCommittedAmount = mean(CommitedFundingAmount, na.rm = TRUE))
+
+zero_committed_amount <- Finance_detail %>%
+  filter(!is.na(CommitedFundingAmount)) %>%
+  summarise(
+  total_entries = n(),
+  zero_committed_funding = sum(CommitedFundingAmount == 0, na.rm = TRUE),
+  percentage_zero = (zero_committed_funding / total_entries) * 100
+)
+
+zero_committed_amount_by_org <- Finance_detail %>%
+  filter(!is.na(CommitedFundingAmount)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(
+    total_entries = n(),
+    zero_committed_funding = sum(CommitedFundingAmount == 0, na.rm = TRUE),
+    percentage_zero = (zero_committed_funding / total_entries) * 100
+  )
+#The avg committed amount across all boards is $2,402,961
+#The highest avg committed amount when stratified by org is $2,915,164 (SCE)
+#4 percent reported 0 for committed funding
+#SDG&E had the most number of projects that reported 0 for committed funding (35%) - PG&E reported no zeros
+
+#how does committed funding, encumbered funding, and funds expended relate? Is funds expended always < commited + encumbered?
+# Committed Funding is the total budget.
+# Encumbered Funding is the reserved part of the budget.
+# Funds Expended is the spent part of the budget.
+#Mathematical formula to check for (discuss with BK though): FE < Committed + encumbered
+
+budget_check <- Finance_detail %>%
+  filter(
+    !is.na(CommitedFundingAmount) & CommitedFundingAmount != 0,
+    !is.na(FundsExpendedToDate) & FundsExpendedToDate != 0,
+    !is.na(EncumberedFundingAmount) & EncumberedFundingAmount != 0
+  ) %>%
+  mutate(check = FundsExpendedToDate < (CommitedFundingAmount + EncumberedFundingAmount))
+  
+view_budget_check <- print(budget_check %>% select(ProjectId, ProjectNo, CommitedFundingAmount, FundsExpendedToDate, EncumberedFundingAmount, check))
+summary_budget_check <- view_budget_check %>%
+  summarise(
+    Total = n(),
+    Matches = sum(check, na.rm = TRUE),
+    Mismatches = sum(!check, na.rm = TRUE),
+    percentage_match = Matches/Total*100
+  )
+
+#discuss with BK though
+
+#what is average funds expended amount? percent reporting zero? which projects are reporting zero?
+avg_expended_amount <- Finance_detail %>%
+  filter(!is.na(FundsExpendedToDate) & FundsExpendedToDate != 0) %>%
+  summarise(AverageExpendedAmount = mean(FundsExpendedToDate, na.rm = TRUE))
+
+avg_expended_amount_by_org <- Finance_detail %>%
+  filter(!is.na(FundsExpendedToDate) & FundsExpendedToDate != 0) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(AverageExpendedAmount = mean(FundsExpendedToDate, na.rm = TRUE))
+
+zero_expended_amount <- Finance_detail %>%
+  filter(!is.na(FundsExpendedToDate)) %>%
+  summarise(
+    total_entries = n(),
+    zero_expended_funding = sum(FundsExpendedToDate == 0, na.rm = TRUE),
+    percentage_zero = (zero_expended_funding / total_entries) * 100
+  )
+
+zero_expended_amount_by_org <- Finance_detail %>%
+  filter(!is.na(FundsExpendedToDate)) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(
+    total_entries = n(),
+    zero_expended_funding = sum(FundsExpendedToDate == 0, na.rm = TRUE),
+    percentage_zero = (zero_expended_funding / total_entries) * 100
+  )
+
+#The avg expended amount across all boards is $1,655,486
+#The highest avg expended amount when stratified by org is $2,422,829 (SCE)
+#14 percent reported 0 for expended funding
+#SDG&E had the most number of projects that reported 0 for expended funding (35%) - PG&E reported no zeros
+
+
+#Does ContractAmount match same column on Projects tab? 
+matched_amounts <- Finance_detail %>%
+  mutate(Matched_Amounts = ifelse(ContractAmount_details == ContractAmount_overview, TRUE, FALSE))
+
+# View the result
+view_amount <- print(matched_amounts %>% select(ProjectId, ProjectNo, ContractAmount_overview, ContractAmount_details, Matched_Amounts))
+summary_matched_amounts <- view_amount %>%
+  summarise(
+    Total = n(),
+    Matches = sum(Matched_Amounts, na.rm = TRUE),
+    Mismatches = sum(!Matched_Amounts, na.rm = TRUE),
+    percentage_match = Matches/Total*100
+  )
+
+#82 percent of the Contract Amounts in both tabs match
