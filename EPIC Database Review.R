@@ -6,15 +6,60 @@ library(tidyverse)
 library(readxl)
 library(writexl)
 
-# Load relevant data 
+#### Load relevant data #### 
 
-Projects_overview <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Projects")
+Projects_overview <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Projects") #Sherab please copy code from my projects_overview object to remove duplicates
 Projects_detail <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Projects Detail")
 Finance_detail <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Finance Detail")
 Projects_metric <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Project Metric")
 
-### Project overview checks ###
-# how many distinct Ids, ProjectNo, ProjectName, any discrepancies - Green 
+#bk 
+Projects_overview <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Projects") %>% 
+  select(-LongitudeX,-LatitudeY) %>% #there were 12 instances of duplicates that were matching all columns besides lat and long, removed
+  distinct()
+Projects_detail <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Projects Detail")
+Finance_detail <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Finance Detail")
+Projects_metric <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Project Metric ")
+
+
+#### bk function for admin stratification #### 
+
+stratify_admin_mean <- function(data,variable){
+  output <- data %>% 
+    filter(!is.na(ProgramAdminName),
+           !is.na({{variable}})) %>% 
+    group_by(ProgramAdminName) %>% 
+    summarise(average = mean({{variable}}, na.rm = TRUE))
+  return(output)
+}
+
+stratify_admin_percent <- function(data,variable){
+  output <- data %>% 
+    filter(!is.na(ProgramAdminName),
+           !is.na({{variable}})) %>% 
+    group_by(ProgramAdminName, {{variable}}) %>%
+    summarise(n = n(), .groups = 'drop') %>%
+    group_by(ProgramAdminName) %>%  # Regroup by ProgramAdminName
+    mutate(pct = n / sum(n) * 100)
+  return(output)
+}
+
+stratify_admin_includeNA <- function(data,variable){
+  output <- data %>%
+  group_by(ProgramAdminName) %>%
+  summarise(
+    total_rows = n(),
+    non_missing_count = sum(!is.na({{variable}})),
+    percentage = (non_missing_count / total_rows) * 100
+  )
+  return(output)
+}
+
+
+
+
+#### PROJECT OVERVIEW CHECKS ####
+#### how many distinct Ids, ProjectNo, ProjectName, any discrepancies - Green #### 
 
 distinct_ids_overview <- Projects_overview %>%
   filter(!is.na(Id)) %>%
@@ -31,7 +76,32 @@ distinct_projectname_overview <- Projects_overview %>%
 #Note: Slight discrepancies to note here: there are 620 unique project IDs but the number decreases slightly to 611 project nos. (there were some NAs here)
 #and to 613 project names
 
-# how many multiphase projects and how these are reported, consistently or not
+#bk
+#projects
+n_distinct(Projects_overview$Id) #620
+n_distinct(Projects_overview$ProjectNo) #612
+n_distinct(Projects_overview$ProjectName) #613
+
+#projects detail
+n_distinct(Projects_detail$ProjectId) #612, missing 8
+n_distinct(Projects_detail$ProjectNo) #604, missing 8
+n_distinct(Projects_detail$ProjectDetailId) #611
+
+#finance detail
+n_distinct(Finance_detail$ProjectId) #612, missing 8
+n_distinct(Finance_detail$ProjectNo) #604, missing 8
+
+#projects metric
+n_distinct(Projects_metric$ProjectId) #619, missing 1
+n_distinct(Projects_metric$ProjectNo) #611, missing 1
+
+#generally acceptable levels of missing 
+#consider finding these specific projects and seeing which admin(s) these are
+
+
+
+
+#### how many multiphase projects and how these are reported, consistently or not ####
 extract_base_project <- function(project_no) {
   sub(" Module.*| Project.*", "", project_no)
 }
@@ -55,7 +125,7 @@ multiphase_projects <- projects %>%
 #Ask BK about this because this is very confusing 
 #Probably best to do it in Excel - pause for now and ask KP on Tuesday about how much he wants it
 
-# average contract amount, removing zeros/NAs 
+#### average contract amount, removing zeros/NAs ####
 filtered_projects <- Projects_overview %>%
   filter(!is.na(ContractAmount) & ContractAmount != 0)
 avg_contract_amount <- mean(filtered_projects$ContractAmount)
@@ -64,7 +134,11 @@ avg_contract_amount_by_org <- filtered_projects %>%
   group_by(ProgramAdminName) %>%
   summarise(AverageContractAmount = mean(ContractAmount, na.rm = TRUE))
 
-# table of project leads and count of projects
+#bk function if want to use
+functionavg_contract_amount_by_org <- stratify_admin(filtered_projects,ContractAmount)
+
+
+#### table of project leads and count of projects ####
 
 standardize_project_lead <- function(project_lead) {
   standardized_names <- c(
@@ -118,7 +192,7 @@ count_of_projects_by_lead <- Projects_overview %>%
 #In this, the way the data has been reported in a way that the same organization has different number of projects because of different naming styles (eg: PG&E and Pacific Gas and Electric)
 #Too many edge cases to handle - ask BK and/or HL about this
 
-# table of ProgramAdminName and count of projects, identify difference between this variable and ProjectLead - Green
+#### table of ProgramAdminName and count of projects, identify difference between this variable and ProjectLead - Green ####
 count_of_projects_by_admin <- Projects_overview %>%
   filter(!is.na(ProgramAdminName)) %>%
   group_by(ProgramAdminName) %>%
@@ -127,20 +201,25 @@ count_of_projects_by_admin <- Projects_overview %>%
 #It's definitely easier to count projects based on ProgramAdmin because there are four major overseers here - interesting to note here is that the utilities have offloaded some of the projects to smaller orgs, 
 #making a strong case as theorized by BK that the observations in the ProjectLead variable are program implementers/consultants and the ProgramAdmin folks are the overall administrators/overseers
 
-# percent of projects active/closed/pending - Green
+#### percent of projects active/closed/pending - Green ####
 percent_of_projects_by_status <- Projects_overview %>%
   filter(!is.na(ProjectStatus)) %>%
   group_by(ProjectStatus) %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
 
-# percent of projects listed as IsActive = TRUE but ProjectStatus = Closed, consider projectenddate, general exploration of status and date reporting discrepancies - Green
+admin_percent_of_projects_by_status <- stratify_admin_percent(Projects_overview,ProjectStatus)
+
+
+
+#### percent of projects listed as IsActive = TRUE but ProjectStatus = Closed, consider projectenddate, general exploration of status and date reporting discrepancies - Green ####
 
 projects_active_closed <- Projects_overview %>%
   filter(!is.na(ProjectStatus),
          !is.na(IsActive)) %>%
   filter(IsActive == TRUE, ProjectStatus == "Closed") %>%
   summarise(percentage = (n() / nrow(Projects_overview)) * 100)
+
 
 projects_active_closed_by_org <- Projects_overview %>%
   filter(!is.na(ProjectStatus),
@@ -154,7 +233,7 @@ projects_active_closed_by_org <- Projects_overview %>%
 #All of the projects listed as active but closed should be listed as inactive (all of the project end dates have passed)
 # When split by org, the CEC has the most projects that face this contradiction, followed by PG&E, SDG&E, and SCE
 
-# percent start and end dates populated, average duration of project - Green
+#### percent start and end dates populated, average duration of project - Green ####
 projects_start_end <- Projects_overview %>%
   filter(!is.na(ProjectStartDate) & !is.na(ProjectEndDate)) %>%
   summarise(percentage = (n() / nrow(Projects_overview)) * 100)
@@ -168,29 +247,36 @@ average_project_duration <- Projects_overview %>%
   filter(!is.na(ProjectStartDate) & !is.na(ProjectEndDate)) %>%
   mutate(ProjectStartDate = as.Date(ProjectStartDate, format = "%m/%d/%Y"),
          ProjectEndDate = as.Date(ProjectEndDate, format = "%m/%d/%Y"),
-         ProjectDuration = as.numeric(ProjectEndDate - ProjectStartDate)/7) %>%
-  summarise(AverageDuration = mean(ProjectDuration, na.rm = TRUE))
+         ProjectDuration = as.numeric(ProjectEndDate - ProjectStartDate)/7) 
+  # summarise(AverageDuration = mean(ProjectDuration, na.rm = TRUE))
   
+admin_average_project_duration <- stratify_admin_mean(average_project_duration,ProjectDuration)
+
+
 #91 percent of projects have populated start and end dates 
 #198 weeks(3.8 years) is the avg project duration
 
-# percent of projects with contact info provided (name and email), any differences by program admin (i.e. which admins are best at reporting this?)
+#### percent of projects with contact info provided (name and email), any differences by program admin (i.e. which admins are best at reporting this?) ####
 projects_contact_info <- Projects_overview %>%
   filter(!is.na(PersonContactFirstName) & !is.na(PersonContactLastName) & !is.na(PersonContactEmail)) %>%
   summarise(percentage = (n() / nrow(Projects_overview)) * 100)
 
 projects_contact_info_by_org <- Projects_overview %>%
   group_by(ProgramAdminName) %>%
-  filter(!is.na(PersonContactFirstName) & !is.na(PersonContactLastName) & !is.na(PersonContactEmail)) %>%
+  filter(!is.na(PersonContactFirstName) & !is.na(PersonContactLastName) & !is.na(PersonContactEmail)) %>% 
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
+
+
+
+
 
 #81 percent of projects had contact info (name and email)
 #PG&E and CEC were the only two program admins that were relatively consistent with providing contact info on their projects (name AND email)
 #SCE (n = 23) was more consistent in giving out names than SDG&E
 #SDG&E had no information at all (n = 27) compared to SCE
 
-# percent of projects with cec manager contact info provided (name and email), any differences by program admin (i.e. which admins are best at reporting this?)
+#### percent of projects with cec manager contact info provided (name and email), any differences by program admin (i.e. which admins are best at reporting this?) ####
 projects_CEC_contact_info <- Projects_overview %>%
   filter(!is.na(CecMgrContactFirstName) & !is.na(CecMgrContactLastName) & !is.na(CecMgrEmail)) %>%
   summarise(percentage = (n() / nrow(Projects_overview)) * 100)
@@ -206,16 +292,23 @@ projects_CEC_contact_info_by_org <- Projects_overview %>%
 #PG&E and SCE did provide names (but the way they reported it-first and last names were together in the CecMgrContactFirstName column)
 #SDG&E either left it blank or the projects that they worked on did not have CEC involvement, so NA (N = 4)
 
-### Projects Detail ###
+#### PROJECTS DETAIL ####
 
 Projects_detail <- Projects_detail %>%
   left_join(Projects_overview %>% select(Id, ProjectNo, ProgramAdminName, IsActive), by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
+
+#bk check, this should be zero now
+duplicates <- Projects_detail %>% 
+  group_by(ProjectId) %>% 
+  summarize(nrows = n()) %>% 
+  filter(nrows > 1)
+
 
 Projects_detail <-  Projects_detail %>%
   rename(IsActive_details = IsActive.x, IsActive_overview = IsActive.y)
 
          
-# check if Projectid and ProjectNo match Id and ProjectNo column on Projects tab - Green
+#### check if Projectid and ProjectNo match Id and ProjectNo column on Projects tab - Green ####
 
 Projects_check <- Projects_overview %>%
   rename(Projects_Id = Id)
@@ -243,7 +336,15 @@ distinct_projectno_detail <- Projects_detail %>%
 #Note: Slight discrepancies to note here: there are 620 unique project IDs in the overview but the number decreases slightly to 612 here
 #611 projects in the overview but 603 here 
 
-# percent of projects with detailed project description - Green
+
+#bk check 
+check <- Projects_overview %>% 
+  rename("ProjectId" = "Id") %>% 
+  mutate(nomatch = !ProjectId %in% Projects_detail$ProjectId) %>% 
+  filter(nomatch == TRUE) #these are the 8 ids not in the detail tab, all other ids match
+  
+
+#### percent of projects with detailed project description - Green ####
 
 project_description_pct <- Projects_detail %>%
   filter(!is.na(DetailedProjectDescription)) %>%
@@ -254,11 +355,34 @@ project_description_pct_by_org <- Projects_detail %>%
   group_by(ProgramAdminName) %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
+
+
   
 #There are 182 projects that have a project description out of the 612 listed 
 #ask BK this - excel says there are 171 projects but here it says 182
+#bk updated so now 171 
 
-# percent of projects with project summary, are there any themes among blank projects? what is their status? - Green
+#bk update to get the percentage populated by program admin
+project_description_pct_by_org_new <- Projects_detail %>%
+  group_by(ProgramAdminName) %>%
+  summarise(
+    total_rows = n(),
+    non_missing_count = sum(!is.na(DetailedProjectDescription)),
+    percentage = (non_missing_count / total_rows) * 100
+  )
+#CEC is only admin missing detailed project descriptions; they're missing for ~90% of their projects
+
+#### bk added: check which admins are listing "competitive" as detailed description ####
+competitive_check <- Projects_detail %>%
+  filter(!is.na(DetailedProjectDescription)) %>% 
+  group_by(ProgramAdminName) %>%
+  summarise(
+    listed_competitive = sum(DetailedProjectDescription == "Competitive"),
+    total_rows = n(),
+    percentage = (listed_competitive / total_rows) * 100)
+#cec was the only admin that listed "competitive" for their detailed description. they did this for 93% of the projects they wrote a description for
+
+#### percent of projects with project summary, are there any themes among blank projects? what is their status? - Green ####
 project_summary_pct <- Projects_detail %>%
   filter(!is.na(ProjectSummary)) %>%
   summarise(percentage = (n() / nrow(Projects_detail)) * 100)
@@ -269,6 +393,8 @@ project_summary_pct_by_org <- Projects_detail %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
 
+project_summary_pct_by_org_new <- stratify_admin_includeNA(Projects_detail,ProjectSummary)
+
 blank_projects_by_org_status <- Projects_detail %>%
   filter(is.na(ProjectSummary)) %>%
   group_by(ProgramAdminName, IsActive_details) %>%
@@ -277,7 +403,7 @@ blank_projects_by_org_status <- Projects_detail %>%
 #98 percent of the projects at least had a project summary
 #For the remaining 2 percent (n= 12), ten of them were still technically active - all of them belonged to the CEC
 
-# percent of projects with project update, are there any themes among blank projects? - Green
+#### percent of projects with project update, are there any themes among blank projects? - Green ####
 project_update_pct <- Projects_detail %>%
   filter(!is.na(ProjectUpdate)) %>%
   summarise(percentage = (n() / nrow(Projects_detail)) * 100)
@@ -288,6 +414,10 @@ project_update_pct_by_org <- Projects_detail %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
 
+#bk update to get the percentage populated by program admin
+project_update_pct_by_org_new <- stratify_admin_includeNA(Projects_detail,ProjectUpdate)
+  
+
 blank_projects_update_by_org_status <- Projects_detail %>%
   filter(is.na(ProjectUpdate)) %>%
   group_by(ProgramAdminName, IsActive_details) %>%
@@ -296,7 +426,7 @@ blank_projects_update_by_org_status <- Projects_detail %>%
 #73 percent of the projects had a project update
 #For the remaining (n = 167), the majority (n = 137) were no longer active - belonged to a variety of orgs (PG&E was the only one where all the projects were inactive)
 
-# percent of projects with deliverables, are there any themes among blank projects? - Green 
+#### percent of projects with deliverables, are there any themes among blank projects? - Green ####
 project_deliverable_pct <- Projects_detail %>%
   filter(!is.na(Deliverables)) %>%
   summarise(percentage = (n() / nrow(Projects_detail)) * 100)
@@ -309,6 +439,12 @@ project_deliverable_pct_by_org <- Projects_detail %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
 
+#bk update to get the percentage populated by program admin
+project_deliverable_pct_by_org_new <- stratify_admin_includeNA(Projects_detail,Deliverables)
+
+
+
+
 blank_projects_deliverable_by_org_status <- Projects_detail %>%
   filter(is.na(Deliverables)) %>%
   group_by(ProgramAdminName, IsActive_details) %>%
@@ -319,7 +455,7 @@ blank_projects_deliverable_by_org_status <- Projects_detail %>%
 
 #Note: Excel is wonky and it's throwing me off too - bring up with BK
 
-# lower priority: percent of projects with StatePolicySupportText, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers, GettingToScale, KeyInnovations, KeyLearnings, Scalability - red
+#### lower priority: percent of projects with StatePolicySupportText, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers, GettingToScale, KeyInnovations, KeyLearnings, Scalability - red ####
 
 #State Policy Support
 statepolicy_pct <- Projects_detail %>%
@@ -331,6 +467,8 @@ statepolicy_pct_by_org <- Projects_detail %>%
   group_by(ProgramAdminName) %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
+
+statepolicy_pct_by_org <- stratify_admin_includeNA(Projects_detail,StatePolicySupportText)
 
 blank_statepolicy_by_org_status <- Projects_detail %>%
   filter(is.na(StatePolicySupportText)) %>%
@@ -352,6 +490,9 @@ techbarriers_pct_by_org <- Projects_detail %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
 
+techbarriers_pct_by_org <- stratify_admin_includeNA(Projects_detail,TechnicalBarriers)
+
+
 blank_techbarriers_by_org_status <- Projects_detail %>%
   filter(is.na(TechnicalBarriers)) %>%
   group_by(ProgramAdminName, IsActive_details) %>%
@@ -371,6 +512,9 @@ marketbarriers_pct_by_org <- Projects_detail %>%
   group_by(ProgramAdminName) %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
+
+marketbarriers_pct_by_org <- stratify_admin_includeNA(Projects_detail,MarketBarriers)
+
 
 blank_marketbarriers_by_org_status <- Projects_detail %>%
   filter(is.na(MarketBarriers)) %>%
@@ -392,6 +536,9 @@ policybarriers_pct_by_org <- Projects_detail %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
 
+policybarriers_pct_by_org <- stratify_admin_includeNA(Projects_detail,PolicyAndRegulatoryBarriers)
+
+
 blank_policybarriers_by_org_status <- Projects_detail %>%
   filter(is.na(PolicyAndRegulatoryBarriers)) %>%
   group_by(ProgramAdminName, IsActive_details) %>%
@@ -411,6 +558,10 @@ g2s_pct_by_org <- Projects_detail %>%
   group_by(ProgramAdminName) %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
+
+g2s_pct_by_org <- stratify_admin_includeNA(Projects_detail,GettingToScale)
+
+
 
 g2s_blank_by_org_status <- Projects_detail %>%
   filter(is.na(GettingToScale)) %>%
@@ -432,6 +583,8 @@ innovations_by_org <- Projects_detail %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
 
+innovations_by_org <- stratify_admin_includeNA(Projects_detail,KeyInnovations)
+
 innovations_blank_by_org_status <- Projects_detail %>%
   filter(is.na(KeyInnovations)) %>%
   group_by(ProgramAdminName, IsActive_details) %>%
@@ -452,6 +605,8 @@ leanings_by_org <- Projects_detail %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
 
+leanings_by_org <- stratify_admin_includeNA(Projects_detail,KeyLeanings)
+
 leanings_blank_by_org_status <- Projects_detail %>%
   filter(is.na(KeyLeanings)) %>%
   group_by(ProgramAdminName, IsActive_details) %>%
@@ -471,6 +626,8 @@ scalability_by_org <- Projects_detail %>%
   group_by(ProgramAdminName) %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
+
+scalability_by_org <- stratify_admin_includeNA(Projects_detail,Scalability)
 
 scalability_blank_by_org_status <- Projects_detail %>%
   filter(is.na(Scalability)) %>%
@@ -498,14 +655,14 @@ summary_isactive_match <- view %>%
 #According to this, 13 percent matches
 #Huge discrepancy
 
-### Finance Detail ###
+#### FINANCE DETAIL ####
 Finance_detail_check <- Finance_detail %>%
   left_join(Projects_overview, by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
 
 Finance_detail_check <-  Finance_detail_check %>%
   rename(ContractAmount_details = ContractAmount.x, ContractAmount_overview = ContractAmount.y)
 
-#how many distinct Projectid and ProjectNo
+#### how many distinct Projectid and ProjectNo ####
 distinct_ids_finance <- Finance_detail_check %>%
   summarise(num_distinct_ids = n_distinct(ProjectId))
 
@@ -518,7 +675,7 @@ distinct_projectno_finance <- Finance_detail_check %>%
 #check if Projectid and ProjectNo match other tabs
 
 
-#what is average CommitedFundingAmount? Percent reporting zero? Which projects are reporting zero?
+#### what is average CommitedFundingAmount? Percent reporting zero? Which projects are reporting zero? ####
 avg_committed_amount <- Finance_detail %>%
   filter(!is.na(CommitedFundingAmount) & CommitedFundingAmount != 0) %>%
   summarise(AverageCommittedAmount = mean(CommitedFundingAmount, na.rm = TRUE))
@@ -549,7 +706,7 @@ zero_committed_amount_by_org <- Finance_detail %>%
 #4 percent reported 0 for committed funding
 #SDG&E had the most number of projects that reported 0 for committed funding (35%) - PG&E reported no zeros
 
-#how does committed funding, encumbered funding, and funds expended relate? Is funds expended always < commited + encumbered?
+#### how does committed funding, encumbered funding, and funds expended relate? Is funds expended always < commited + encumbered? ####
 # Committed Funding is the total budget.
 # Encumbered Funding is the reserved part of the budget.
 # Funds Expended is the spent part of the budget.
@@ -574,7 +731,7 @@ summary_budget_check <- view_budget_check %>%
 
 #discuss with BK though
 
-#what is average funds expended amount? percent reporting zero? which projects are reporting zero?
+#### what is average funds expended amount? percent reporting zero? which projects are reporting zero? ####
 avg_expended_amount <- Finance_detail %>%
   filter(!is.na(FundsExpendedToDate) & FundsExpendedToDate != 0) %>%
   summarise(AverageExpendedAmount = mean(FundsExpendedToDate, na.rm = TRUE))
@@ -607,7 +764,7 @@ zero_expended_amount_by_org <- Finance_detail %>%
 #SDG&E had the most number of projects that reported 0 for expended funding (35%) - PG&E reported no zeros
 
 
-#Does ContractAmount match same column on Projects tab? 
+#### Does ContractAmount match same column on Projects tab? #### 
 matched_amounts <- Finance_detail_check %>%
   mutate(Matched_Amounts = ifelse(ContractAmount_details == ContractAmount_overview, TRUE, FALSE))
 
@@ -624,7 +781,7 @@ summary_matched_amounts <- view_amount %>%
 #82 percent of the Contract Amounts in both tabs match
 #Ask BK if he thinks this is right
 
-### Project Metric ###
+#### PROJECT METRIC ####
 
 Projects_metric <- Projects_metric %>%
   left_join(Projects_overview, by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
@@ -632,7 +789,7 @@ Projects_metric <- Projects_metric %>%
 Projects_metric <- Projects_metric %>%
   rename(IsActive_metric = IsActive.x, IsActive_overview = IsActive.y)
 
-#how many distinct Projectid and ProjectNo
+#### how many distinct Projectid and ProjectNo ####
 distinct_ids_metric <- Projects_metric %>%
   summarise(num_distinct_ids = n_distinct(ProjectId))
 
@@ -646,7 +803,7 @@ distinct_projectno_metric <- Projects_metric %>%
 #check if Projectid and ProjectNo match other tabs
 #Ask BK
 
-# percent of projects reporting each impact (ElectricitySystemReliabilityImpacts:InformationDissemination)
+#### percent of projects reporting each impact (ElectricitySystemReliabilityImpacts:InformationDissemination) ####
 
 # ElectricitySystemReliabilityImpacts
 reli_impacts_pct <- Projects_metric %>%
@@ -859,7 +1016,7 @@ blank_info_pct_by_org_status <- Projects_metric %>%
 #PG&E had the plurality of projects that mentioned information dissemination (46%)
 #Among those that are blank, 99 percent were still active
 
-# Does IsActive column match same column on other tabs?
+#### Does IsActive column match same column on other tabs? ####
 matched_projects_metric <- Projects_metric %>%
   mutate(IsActive_Match = ifelse(IsActive_overview == IsActive_metric, TRUE, FALSE))
 
