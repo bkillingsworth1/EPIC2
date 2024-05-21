@@ -221,7 +221,10 @@ projects_active_closed <- Projects_overview %>%
   filter(!is.na(ProjectStatus),
          !is.na(IsActive)) %>%
   filter(IsActive == TRUE, ProjectStatus == "Closed") %>%
-  summarise(percentage = (n() / nrow(Projects_overview)) * 100)
+  summarise(n = n(),
+            total = nrow(Projects_overview),
+            percentage = (n() / total) * 100
+  )
 
 
 projects_active_closed_by_org <- Projects_overview %>%
@@ -242,9 +245,16 @@ projects_start_end <- Projects_overview %>%
   filter(!is.na(ProjectStartDate) & !is.na(ProjectEndDate)) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(Projects_overview),
     percentage = (n() / total) * 100
   )
+
+projects_start_end_by_org <- Projects_overview %>%
+  group_by(ProgramAdminName) %>%
+  mutate(total_projects = n()) %>%  # Total projects per ProgramAdminName
+  filter(!is.na(ProjectStartDate) & !is.na(ProjectEndDate)) %>%  # Filter for active and closed projects
+  summarise(n = n(), total_projects = first(total_projects), .groups = 'drop') %>%  # Count and keep total projects
+  mutate(pct = n / total_projects * 100)
 
 # Inspect the date format
 head(Projects_overview$ProjectStartDate)
@@ -269,7 +279,7 @@ projects_contact_info <- Projects_overview %>%
   filter(!is.na(PersonContactFirstName) & !is.na(PersonContactLastName) & !is.na(PersonContactEmail)) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(Projects_overview),
     percentage = (n() / total) * 100
   )
 
@@ -291,7 +301,7 @@ projects_CEC_contact_info <- Projects_overview %>%
   filter(!is.na(CecMgrContactFirstName) & !is.na(CecMgrContactLastName) & !is.na(CecMgrEmail)) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(Projects_overview),
     percentage = (n() / total) * 100
   )
 
@@ -405,13 +415,7 @@ project_summary_pct <- Projects_detail %>%
     percentage = (n() / total) * 100
   )
 
-project_summary_pct_by_org <- Projects_detail %>%
-  filter(!is.na(ProjectSummary)) %>%
-  group_by(ProgramAdminName) %>%
-  summarise(n = n(), .groups = 'drop') %>%
-  mutate(pct = n / sum(n) * 100)
-
-project_summary_pct_by_org_new <- stratify_admin_includeNA(Projects_detail,ProjectSummary)
+project_summary_pct_by_org <- stratify_admin_includeNA(Projects_detail,ProjectSummary)
 
 blank_projects_by_org_status <- Projects_detail %>%
   filter(is.na(ProjectSummary)) %>%
@@ -685,7 +689,7 @@ avg_committed_amount_by_org <- Finance_detail_check %>%
   group_by(ProgramAdminName) %>%
   summarise(AverageCommittedAmount = mean(CommitedFundingAmount, na.rm = TRUE))
 
-zero_committed_amount <- Finance_detail %>%
+zero_committed_amount <- Finance_detail_check %>%
   filter(!is.na(CommitedFundingAmount)) %>%
   summarise(
   total_entries = n(),
@@ -694,7 +698,7 @@ zero_committed_amount <- Finance_detail %>%
 )
 
 zero_committed_amount_by_org <- Finance_detail_check %>%
-  #filter(is.na(CommitedFundingAmount)) %>%
+  filter(!is.na(CommitedFundingAmount)) %>%
   group_by(ProgramAdminName) %>%
   summarise(
     total_entries = n(),
@@ -814,7 +818,7 @@ reli_impacts_pct <- Projects_metric %>%
   filter(!is.na(ElectricitySystemReliabilityImpacts)) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(Projects_metric),
     percentage = (n() / total) * 100
   )
 
@@ -836,7 +840,7 @@ safety_impacts_pct <- Projects_metric %>%
   filter(!is.na(ElectricitySystemSafetyImpacts)) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(Projects_metric),
     percentage = (n() / total) * 100
   )
 
@@ -849,7 +853,7 @@ blank_safety_impacts_pct_by_org_status <- Projects_metric %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
 
-#Only 17 percent mention electricity system safety impacts
+#Only 16 percent mention electricity system safety impacts
 #EC has the most missing (94% percent missing). SDG&E have least projects missing
 
 # EnviromentalImpactsNonGHG
@@ -857,7 +861,7 @@ enviro_impacts_pct <- Projects_metric %>%
   filter(!is.na(EnviromentalImpactsNonGHG)) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(Projects_metric),
     percentage = (n() / total) * 100
   )
 
@@ -877,7 +881,7 @@ proj_benefits_pct <- Projects_metric %>%
   filter(!is.na(ProjectedProjectBenefits)) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(Projects_metric),
     percentage = (n() / total) * 100
   )
 
@@ -889,7 +893,7 @@ blank_proj_benefits_pct_by_org_status <- Projects_metric %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
 
-#87 percent mentioned project benefits
+#86 percent mentioned project benefits
 #CEC has most missing (~16% missing). SDG&E has none missing
 #Among those that are blank, the majority (98%) were active
 
@@ -898,7 +902,7 @@ rp_benefits_pct <- Projects_metric %>%
   filter(!is.na(RatePayersBenefits)) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(Projects_metric),
     percentage = (n() / total) * 100
   )
 
@@ -919,7 +923,7 @@ community_benefits_pct <- Projects_metric %>%
   filter(!is.na(CommunityBenefitsDesc)) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(Projects_metric),
     percentage = (n() / total) * 100
   )
 
@@ -941,7 +945,7 @@ energy_impacts_pct <- Projects_metric %>%
   filter(!is.na(EnergyImpacts)) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(Projects_metric),
     percentage = (n() / total) * 100
   )
 
@@ -962,7 +966,7 @@ infra_cb_pct <- Projects_metric %>%
   filter(!is.na(InfrastructureCostBenefits)) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(Projects_metric),
     percentage = (n() / total) * 100
   )
 
@@ -974,7 +978,7 @@ blank_infra_cb_pct_by_org_status <- Projects_metric %>%
   summarise(n = n(), .groups = 'drop') %>%
   mutate(pct = n / sum(n) * 100)
 
-#21 percent listed infrastructure cost benefits. 
+#20 percent listed infrastructure cost benefits. 
 #CEC has most  missing (~87%). 
 #SDG&E has the least missing (24%)
 #Among those that are blank, 98 percent were active
@@ -984,7 +988,7 @@ other_impacts_pct <- Projects_metric %>%
   filter(!is.na(OtherImpacts)) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(Projects_metric),
     percentage = (n() / total) * 100
   )
 
@@ -1006,7 +1010,7 @@ info_pct <- Projects_metric %>%
   filter(!is.na(InformationDissemination)) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(Projects_metric),
     percentage = (n() / total) * 100
   )
 
