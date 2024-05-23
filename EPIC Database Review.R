@@ -660,17 +660,17 @@ summary_isactive_match <- view %>%
 #Huge discrepancy
 
 #### FINANCE DETAIL ####
-Finance_detail_check <- Finance_detail %>%
+Finance_detail <- Finance_detail %>%
   left_join(Projects_overview, by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
 
-Finance_detail_check <-  Finance_detail_check %>%
+Finance_detail <-  Finance_detail %>%
   rename(ContractAmount_details = ContractAmount.x, ContractAmount_overview = ContractAmount.y)
 
 #### how many distinct Projectid and ProjectNo ####
-distinct_ids_finance <- Finance_detail_check %>%
+distinct_ids_finance <- Finance_detail %>%
   summarise(num_distinct_ids = n_distinct(ProjectId))
 
-distinct_projectno_finance <- Finance_detail_check %>%
+distinct_projectno_finance <- Finance_detail %>%
   summarise(num_distinct_projectno = n_distinct(ProjectNo))
 
 #612 distinct ids 
@@ -680,16 +680,16 @@ distinct_projectno_finance <- Finance_detail_check %>%
 
 
 #### what is average CommitedFundingAmount? Percent reporting zero? Which projects are reporting zero? ####
-avg_committed_amount <- Finance_detail_check %>%
+avg_committed_amount <- Finance_detail %>%
   filter(!is.na(CommitedFundingAmount) & CommitedFundingAmount != 0) %>%
   summarise(AverageCommittedAmount = mean(CommitedFundingAmount, na.rm = TRUE))
 
-avg_committed_amount_by_org <- Finance_detail_check %>%
+avg_committed_amount_by_org <- Finance_detail %>%
   filter(!is.na(CommitedFundingAmount) & CommitedFundingAmount != 0) %>%
   group_by(ProgramAdminName) %>%
   summarise(AverageCommittedAmount = mean(CommitedFundingAmount, na.rm = TRUE))
 
-zero_committed_amount <- Finance_detail_check %>%
+zero_committed_amount <- Finance_detail %>%
   filter(!is.na(CommitedFundingAmount)) %>%
   summarise(
   total_entries = n(),
@@ -697,7 +697,7 @@ zero_committed_amount <- Finance_detail_check %>%
   percentage_zero = (zero_committed_funding / total_entries) * 100
 )
 
-zero_committed_amount_by_org <- Finance_detail_check %>%
+zero_committed_amount_by_org <- Finance_detail %>%
   filter(!is.na(CommitedFundingAmount)) %>%
   group_by(ProgramAdminName) %>%
   summarise(
@@ -717,7 +717,7 @@ zero_committed_amount_by_org <- Finance_detail_check %>%
 # Funds Expended is the spent part of the budget.
 #Mathematical formula to check for (discuss with BK though): FE < Committed + encumbered
 
-budget_check <- Finance_detail_check %>%
+budget_check <- Finance_detail %>%
   filter(
     !is.na(CommitedFundingAmount) & CommitedFundingAmount != 0,
     !is.na(FundsExpendedToDate) & FundsExpendedToDate != 0,
@@ -737,23 +737,23 @@ summary_budget_check <- view_budget_check %>%
 #discuss with BK though
 
 #### what is average funds expended amount? percent reporting zero? which projects are reporting zero? ####
-avg_expended_amount <- Finance_detail_check %>%
+avg_expended_amount <- Finance_detail %>%
   filter(!is.na(FundsExpendedToDate) & FundsExpendedToDate != 0) %>%
   summarise(AverageExpendedAmount = mean(FundsExpendedToDate, na.rm = TRUE))
 
-avg_expended_amount_by_org <- Finance_detail_check %>%
+avg_expended_amount_by_org <- Finance_detail %>%
   filter(!is.na(FundsExpendedToDate) & FundsExpendedToDate != 0) %>%
   group_by(ProgramAdminName) %>%
   summarise(AverageExpendedAmount = mean(FundsExpendedToDate, na.rm = TRUE))
 
-zero_expended_amount <- Finance_detail_check %>%
+zero_expended_amount <- Finance_detail %>%
   summarise(
     total_entries = n(),
     zero_expended_funding = sum(FundsExpendedToDate == 0, na.rm = TRUE),
     percentage_zero = (zero_expended_funding / total_entries) * 100
   )
 
-zero_expended_amount_by_org <- Finance_detail_check %>%
+zero_expended_amount_by_org <- Finance_detail %>%
   group_by(ProgramAdminName) %>%
   summarise(
     total_entries = n(),
@@ -768,7 +768,7 @@ zero_expended_amount_by_org <- Finance_detail_check %>%
 
 
 #### Does ContractAmount match same column on Projects tab? #### 
-matched_amounts <- Finance_detail_check %>%
+matched_amounts <- Finance_detail %>%
   mutate(Matched_Amounts = ifelse(ContractAmount_details == ContractAmount_overview, TRUE, FALSE))
 
 # View the result
@@ -1043,3 +1043,36 @@ summary_isactive_match_metric <- view_metric %>%
 
 #Only 2 mismatches: pretty much 100% 
 #Ask BK though
+
+### SECOND ITERATION ###
+
+# Project Detail #
+
+#percent one or more barriers listed. Which projects have none, pull
+barriers_detail <- Projects_detail %>%
+  select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers) %>%
+  filter_at(vars(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), all_vars(!is.na(.) & . != "None" & . != "N/A" & . != "NA" & . != "n/a" & . != "TBD." & . != "None applicable / discussed" & . != "None applicable / discussed"))
+
+###
+tech_barriers <- Projects_detail %>%
+  select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers) %>%
+  filter(!is.na(TechnicalBarriers)) %>%
+  filter(TechnicalBarriers != "None" & TechnicalBarriers != "N/A" & TechnicalBarriers != "NA" & 
+           TechnicalBarriers != "n/a" & TechnicalBarriers != "TBD" & 
+           TechnicalBarriers != "None applicable / discussed" & 
+           TechnicalBarriers != "No such barriers are known.") %>%
+  summarise(
+    n = n(),
+    total = nrow(Projects_detail),
+    percentage = (n() / total) * 100
+  )
+
+tech_barriers_by_org <- stratify_admin_includeNA(Projects_detail,TechnicalBarriers)
+
+no_tech_barriers_by_org <- no_tech_barriers %>%
+  group_by(ProgramAdminName) %>%
+  summarise(
+    n = n(),
+    total = nrow(no_tech_barriers),
+    percentage = (n / total) * 100
+  )
