@@ -1076,3 +1076,24 @@ no_tech_barriers_by_org <- no_tech_barriers %>%
     total = nrow(no_tech_barriers),
     percentage = (n / total) * 100
   )
+
+
+### Additional checks: [matched funds + committed funds] > [encumbered funds] &  >funds expended? ###
+budget_check_second <- Finance_detail %>%
+  filter(
+    !is.na(CommitedFundingAmount) & CommitedFundingAmount != 0,
+    !is.na(FundsExpendedToDate) & FundsExpendedToDate != 0,
+    !is.na(EncumberedFundingAmount) & EncumberedFundingAmount != 0,
+    !is.na(MatchFunding) & MatchFunding != 0
+  ) %>%
+  mutate(check = (MatchFunding + CommitedFundingAmount) > EncumberedFundingAmount & (MatchFunding + CommitedFundingAmount) > FundsExpendedToDate)
+
+view_budget_check_second <- print(budget_check_second %>% select(ProjectId, ProjectNo, CommitedFundingAmount, FundsExpendedToDate, EncumberedFundingAmount, check))
+summary_budget_check_second <- view_budget_check_second %>%
+  summarise(
+    Total = n(),
+    Matches = sum(check, na.rm = TRUE),
+    Mismatches = sum(!check, na.rm = TRUE),
+    percentage_match = Matches/Total*100
+  )
+
