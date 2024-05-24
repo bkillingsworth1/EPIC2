@@ -16,7 +16,7 @@ Finance_detail <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database E
 Projects_metric <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Project Metric")
 
 #bk 
-# Projects_overview <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Projects") %>% 
+# Projects_overview <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Projects") %>%
 #   select(-LongitudeX,-LatitudeY) %>% #there were 12 instances of duplicates that were matching all columns besides lat and long, removed
 #   distinct()
 # Projects_detail <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Projects Detail")
@@ -1052,6 +1052,56 @@ summary_isactive_match_metric <- view_metric %>%
 barriers_detail <- Projects_detail %>%
   select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers) %>%
   filter_at(vars(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), all_vars(!is.na(.) & . != "None" & . != "N/A" & . != "NA" & . != "n/a" & . != "TBD." & . != "None applicable / discussed" & . != "None applicable / discussed"))
+
+
+barriers_detail <- Projects_detail %>%
+  select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers) %>%
+  filter_at(vars(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), all_vars(!is.na(.) & . != "None" & . != "N/A" & . != "NA" & . != "n/a" & . != "TBD." & . != "None applicable / discussed" & . != "None applicable / discussed"))
+
+
+
+
+
+
+
+
+
+
+
+
+#BK code
+barriers_detail <- Projects_detail %>%
+  select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers) %>%
+  mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "None"))) %>%
+  mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "N/A"))) %>%
+  mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "NA"))) %>%
+  mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "n/a"))) %>%
+  mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "TBD"))) %>% 
+  mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "TBD."))) %>%
+  mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "None applicable / discussed"))) %>% 
+  mutate(one_or_more_barrier = ifelse(!is.na(TechnicalBarriers)|!is.na(MarketBarriers)|!is.na(PolicyAndRegulatoryBarriers),1,0))
+
+projects_with_no_barriers <- barriers_detail %>% 
+  filter(one_or_more_barrier == 0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ###
 tech_barriers <- Projects_detail %>%
