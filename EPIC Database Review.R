@@ -1059,16 +1059,6 @@ barriers_detail <- Projects_detail %>%
   filter_at(vars(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), all_vars(!is.na(.) & . != "None" & . != "N/A" & . != "NA" & . != "n/a" & . != "TBD." & . != "None applicable / discussed" & . != "None applicable / discussed"))
 
 
-
-
-
-
-
-
-
-
-
-
 #BK code
 barriers_detail <- Projects_detail %>%
   select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers) %>%
@@ -1079,53 +1069,124 @@ barriers_detail <- Projects_detail %>%
   mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "TBD"))) %>% 
   mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "TBD."))) %>%
   mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "None applicable / discussed"))) %>% 
-  mutate(one_or_more_barrier = ifelse(!is.na(TechnicalBarriers)|!is.na(MarketBarriers)|!is.na(PolicyAndRegulatoryBarriers),1,0))
+  mutate(one_or_more_barrier = ifelse(!is.na(TechnicalBarriers)|!is.na(MarketBarriers)|!is.na(PolicyAndRegulatoryBarriers),1,0)) 
 
-projects_with_no_barriers <- barriers_detail %>% 
-  filter(one_or_more_barrier == 0)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-###
-tech_barriers <- Projects_detail %>%
-  select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers) %>%
-  filter(!is.na(TechnicalBarriers)) %>%
-  filter(TechnicalBarriers != "None" & TechnicalBarriers != "N/A" & TechnicalBarriers != "NA" & 
-           TechnicalBarriers != "n/a" & TechnicalBarriers != "TBD" & 
-           TechnicalBarriers != "None applicable / discussed" & 
-           TechnicalBarriers != "No such barriers are known.") %>%
+projects_with_at_least_one_barrier <- barriers_detail %>%
+  filter(one_or_more_barrier == 1) %>%
   summarise(
     n = n(),
-    total = nrow(Projects_detail),
+    total = nrow(barriers_detail),
+    percentage = (n() / total) * 100
+  )
+total_projects_by_org <- barriers_detail %>%
+  group_by(ProgramAdminName) %>%
+  summarise(total = n())
+
+projects_with_at_least_one_barrier_by_org <- barriers_detail %>%
+  filter(one_or_more_barrier == 1) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(
+    n = n()  # Number of projects with at least one barrier
+  ) %>%
+  left_join(total_projects_by_org, by = "ProgramAdminName") %>%
+  mutate(percentage = (n / total) * 100) %>%
+  ungroup()
+
+
+projects_with_no_barriers <- barriers_detail %>% 
+  filter(one_or_more_barrier == 0) %>%
+  summarise(
+    n = n(),
+    total = nrow(barriers_detail),
     percentage = (n() / total) * 100
   )
 
-tech_barriers_by_org <- stratify_admin_includeNA(Projects_detail,TechnicalBarriers)
-
-no_tech_barriers_by_org <- no_tech_barriers %>%
+projects_with_no_barriers_by_org <- barriers_detail %>% 
+  filter(one_or_more_barrier == 0) %>%
   group_by(ProgramAdminName) %>%
   summarise(
+    n = n()  # Number of projects with at least one barrier
+  ) %>%
+  left_join(total_projects_by_org, by = "ProgramAdminName") %>%
+  mutate(percentage = (n / total) * 100) %>%
+  ungroup()
+
+### percent one or more impacts listed. Which projects have none, pull ###
+impacts_detail <- Projects_metric %>%
+  select(ProjectId, ProgramAdminName, ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts) %>%
+  mutate(across(c(ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts), ~ na_if(., "None"))) %>%
+  mutate(across(c(ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts), ~ na_if(., "N/A"))) %>%
+  mutate(across(c(ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts), ~ na_if(., "NA"))) %>%
+  mutate(across(c(ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts), ~ na_if(., "n/a"))) %>%
+  mutate(across(c(ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts), ~ na_if(., "TBD"))) %>% 
+  mutate(across(c(ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts), ~ na_if(., "TBD."))) %>%
+  mutate(across(c(ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts), ~ na_if(., "None applicable / discussed"))) %>% 
+  mutate(one_or_more_impact = ifelse(!is.na(ElectricitySystemSafetyImpacts)|!is.na(ElectricitySystemReliabilityImpacts)|!is.na(EnviromentalImpactsNonGHG) | !is.na(EnergyImpacts)|!is.na(OtherImpacts),1,0)) 
+
+total_projects_by_org_impact <- impacts_detail %>%
+  group_by(ProgramAdminName) %>%
+  summarise(total = n())
+
+projects_with_at_least_one_impact <- impacts_detail %>%
+  filter(one_or_more_impact == 1) %>%
+  summarise(
     n = n(),
-    total = nrow(no_tech_barriers),
-    percentage = (n / total) * 100
+    total = nrow(impacts_detail),
+    percentage = (n() / total) * 100
   )
+
+projects_with_at_least_one_impact_by_org <- impacts_detail %>%
+  filter(one_or_more_impact == 1) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(
+    n = n()  # Number of projects with at least one impact
+  ) %>%
+  left_join(total_projects_by_org, by = "ProgramAdminName") %>%
+  mutate(percentage = (n / total) * 100) %>%
+  ungroup()
+
+
+projects_with_no_impact <- impacts_detail %>% 
+  filter(one_or_more_impact == 0) %>%
+  summarise(
+    n = n(),
+    total = nrow(impacts_detail),
+    percentage = (n() / total) * 100
+  )
+
+projects_with_no_impact_by_org <- impacts_detail %>% 
+  filter(one_or_more_impact == 0) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(
+    n = n()  # Number of projects with at least one impact
+  ) %>%
+  left_join(total_projects_by_org, by = "ProgramAdminName") %>%
+  mutate(percentage = (n / total) * 100) %>%
+  ungroup()
+
+###
+# tech_barriers <- Projects_detail %>%
+#   select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers) %>%
+#   filter(!is.na(TechnicalBarriers)) %>%
+#   filter(TechnicalBarriers != "None" & TechnicalBarriers != "N/A" & TechnicalBarriers != "NA" & 
+#            TechnicalBarriers != "n/a" & TechnicalBarriers != "TBD" & 
+#            TechnicalBarriers != "None applicable / discussed" & 
+#            TechnicalBarriers != "No such barriers are known.") %>%
+#   summarise(
+#     n = n(),
+#     total = nrow(Projects_detail),
+#     percentage = (n() / total) * 100
+#   )
+# 
+# tech_barriers_by_org <- stratify_admin_includeNA(Projects_detail,TechnicalBarriers)
+# 
+# no_tech_barriers_by_org <- no_tech_barriers %>%
+#   group_by(ProgramAdminName) %>%
+#   summarise(
+#     n = n(),
+#     total = nrow(no_tech_barriers),
+#     percentage = (n / total) * 100
+#   )
 
 
 ### Additional checks: [matched funds + committed funds] > [encumbered funds] &  >funds expended? ###
