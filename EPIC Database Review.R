@@ -5,23 +5,24 @@ library(dplyr)
 library(tidyverse)
 library(readxl)
 library(writexl)
+library(lubridate)
 
 #### Load relevant data #### 
 
-Projects_overview <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Projects") %>% 
-  select(-LongitudeX,-LatitudeY) %>% #there were 12 instances of duplicates that were matching all columns besides lat and long, removed
-  distinct() #Sherab please copy code from my projects_overview object to remove duplicates - done
-Projects_detail <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Projects Detail")
-Finance_detail <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Finance Detail")
-Projects_metric <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Project Metric")
+# Projects_overview <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Projects") %>% 
+#   select(-LongitudeX,-LatitudeY) %>% #there were 12 instances of duplicates that were matching all columns besides lat and long, removed
+#   distinct() #Sherab please copy code from my projects_overview object to remove duplicates - done
+# Projects_detail <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Projects Detail")
+# Finance_detail <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Finance Detail")
+# Projects_metric <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Project Metric")
 
 #bk 
-# Projects_overview <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Projects") %>%
-#   select(-LongitudeX,-LatitudeY) %>% #there were 12 instances of duplicates that were matching all columns besides lat and long, removed
-#   distinct()
-# Projects_detail <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Projects Detail")
-# Finance_detail <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Finance Detail")
-# Projects_metric <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Project Metric ")
+Projects_overview <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Projects") %>%
+  select(-LongitudeX,-LatitudeY) %>% #there were 12 instances of duplicates that were matching all columns besides lat and long, removed
+  distinct()
+Projects_detail <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Projects Detail")
+Finance_detail <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Finance Detail")
+Projects_metric <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Project Metric ")
 
 
 #### bk function for admin stratification #### 
@@ -320,7 +321,7 @@ projects_CEC_contact_info_by_org <- Projects_overview %>%
 #### PROJECTS DETAIL ####
 
 Projects_detail <- Projects_detail %>%
-  left_join(Projects_overview %>% select(Id, ProjectNo, ProgramAdminName, IsActive), by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
+  left_join(Projects_overview %>% select(Id, ProjectNo, ProgramAdminName, IsActive, ProjectStartDate, ProjectEndDate), by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
 
 #bk check, this should be zero now
 duplicates <- Projects_detail %>% 
@@ -1061,7 +1062,7 @@ barriers_detail <- Projects_detail %>%
 
 #BK code
 barriers_detail <- Projects_detail %>%
-  select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers) %>%
+  select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers, ProjectStartDate, ProjectEndDate) %>%
   mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "None"))) %>%
   mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "N/A"))) %>%
   mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "NA"))) %>%
@@ -1073,11 +1074,41 @@ barriers_detail <- Projects_detail %>%
 
 projects_with_at_least_one_barrier <- barriers_detail %>%
   filter(one_or_more_barrier == 1) %>%
+  mutate(projectstartdateclean = mdy(ProjectStartDate),
+         projectstartyear = year(projectstartdateclean)) %>% 
+  group_by(projectstartyear) %>% 
   summarise(
     n = n(),
     total = nrow(barriers_detail),
     percentage = (n() / total) * 100
   )
+
+
+projects_with_at_least_one_barrier <- barriers_detail %>%
+  mutate(projectstartdateclean = mdy(ProjectStartDate),
+         projectstartyear = year(projectstartdateclean)) %>%
+  group_by(ProgramAdminName, projectstartyear) %>%
+  summarise(
+    n_with_barrier = sum(one_or_more_barrier == 1, na.rm = T),
+    total_projects = n(),
+    percentage = (n_with_barrier / total_projects) * 100)
+
+
+end_date_projects_with_at_least_one_barrier <- barriers_detail %>%
+  mutate(projectenddateclean = mdy(ProjectEndDate),
+         projectendyear = year(projectenddateclean)) %>%
+  group_by(ProgramAdminName, projectendyear) %>%
+  summarise(
+    n_with_barrier = sum(one_or_more_barrier == 1, na.rm = T),
+    total_projects = n(),
+    percentage = (n_with_barrier / total_projects) * 100)
+
+write_xlsx(projects_with_at_least_one_barrier,"/Users/killingsworth/Documents/EPIC database/barriers_start_date.xlsx")
+write_xlsx(end_date_projects_with_at_least_one_barrier,"/Users/killingsworth/Documents/EPIC database/barriers_end_date.xlsx")
+
+
+  
+  
 total_projects_by_org <- barriers_detail %>%
   group_by(ProgramAdminName) %>%
   summarise(total = n())
