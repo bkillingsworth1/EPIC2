@@ -59,6 +59,20 @@ stratify_admin_includeNA <- function(data,variable){
 }
 
 
+year_stratify_admin_includeNA <- function(data,variable){
+  output <- data %>%
+    mutate(projectstartdateclean = mdy(ProjectStartDate),
+           projectstartyear = year(projectstartdateclean)) %>%
+    group_by(ProgramAdminName, projectstartyear) %>%
+    summarise(
+      total_rows = n(),
+      non_missing_count = sum(!is.na({{variable}})),
+      percentage = (non_missing_count / total_rows) * 100
+    )
+  return(output)
+}
+
+
 
 
 #### PROJECT OVERVIEW CHECKS ####
@@ -132,10 +146,15 @@ multiphase_projects <- projects %>%
 filtered_projects <- Projects_overview %>%
   filter(!is.na(ContractAmount) & ContractAmount != 0)
 avg_contract_amount <- mean(filtered_projects$ContractAmount)
+summary(filtered_projects$ContractAmount)
 
-avg_contract_amount_by_org <- filtered_projects %>%
+
+stats_contract_amount_by_org <- filtered_projects %>%
   group_by(ProgramAdminName) %>%
-  summarise(AverageContractAmount = mean(ContractAmount, na.rm = TRUE))
+  summarise(AverageContractAmount = mean(ContractAmount, na.rm = TRUE),
+            MinContractAmount = min(ContractAmount, na.rm = TRUE),
+            MaxContractAmount = max(ContractAmount, na.rm = TRUE))
+
 
 #bk function if want to use
 functionavg_contract_amount_by_org <- stratify_admin_mean(filtered_projects,ContractAmount)
@@ -215,6 +234,17 @@ percent_of_projects_by_status <- Projects_overview %>%
 admin_percent_of_projects_by_status <- stratify_admin_percent(Projects_overview,ProjectStatus)
 
 
+# Do Pending projects have start dates in the future? Do any Active projects also have start dates in the future? What's the difference?
+pending_active <- Projects_overview %>%
+  filter(!is.na(ProjectStatus) & ProjectStatus %in% c("Pending","Active")) %>%
+  mutate(projectstartdateclean = mdy(ProjectStartDate),
+         projectstartyear = year(projectstartdateclean))
+
+
+
+
+
+
 
 #### percent of projects listed as IsActive = TRUE but ProjectStatus = Closed, consider projectenddate, general exploration of status and date reporting discrepancies - Green ####
 
@@ -257,6 +287,56 @@ projects_start_end_by_org <- Projects_overview %>%
   summarise(n = n(), total_projects = first(total_projects), .groups = 'drop') %>%  # Count and keep total projects
   mutate(pct = n / total_projects * 100)
 
+
+# look at dates themselves and see if they are reasonable 
+projectdates <- Projects_overview %>%
+  filter(!is.na(ProjectStartDate) & !is.na(ProjectEndDate)) %>% 
+  select(ProjectName,ProgramAdminName,ProjectStartDate,ProjectEndDate) %>% 
+  mutate(
+    projectstartdateclean = mdy(ProjectStartDate),
+    projectenddateclean = mdy(ProjectEndDate),
+    projectstartyear = year(projectstartdateclean),
+    projectendyear = year(projectenddateclean))
+
+total_projects <- nrow(projectdates)
+
+count_of_projects_by_startyear <- projectdates %>%
+  group_by(projectstartyear) %>%
+  summarize(count = n(),
+            percent = (n() / total_projects) * 100)
+
+write_xlsx(count_of_projects_by_startyear,"/Users/killingsworth/Documents/EPIC database/project_count_by_start_year.xlsx")
+
+
+
+count_of_projects_by_startyear_admin <- projectdates %>% 
+  group_by(ProgramAdminName,projectstartyear) %>% 
+  summarize(count = n())
+
+total_projects_by_admin <- projectdates %>% 
+  group_by(ProgramAdminName) %>% 
+  summarize(total_count = n(), .groups = 'drop')
+
+startcount_of_projects_with_percentage <- count_of_projects_by_startyear_admin %>%
+  left_join(total_projects_by_admin, by = "ProgramAdminName") %>%
+  mutate(percentage = (count / total_count) * 100)
+
+write_xlsx(startcount_of_projects_with_percentage,"/Users/killingsworth/Documents/EPIC database/project_count_by_start_year_admin.xlsx")
+
+
+
+count_of_projects_by_endyear_admin <- projectdates %>% 
+  group_by(ProgramAdminName,projectendyear) %>% 
+  summarize(count = n())
+
+endcount_of_projects_with_percentage <- count_of_projects_by_endyear_admin %>%
+  left_join(total_projects_by_admin, by = "ProgramAdminName") %>%
+  mutate(percentage = (count / total_count) * 100)
+
+write_xlsx(endcount_of_projects_with_percentage,"/Users/killingsworth/Documents/EPIC database/project_count_by_end_year_admin.xlsx")
+
+
+
 # Inspect the date format
 head(Projects_overview$ProjectStartDate)
 head(Projects_overview$ProjectEndDate)
@@ -292,6 +372,15 @@ projects_contact_info_by_org <- Projects_overview %>%
   mutate(pct = n / total_projects * 100)
 
 
+projects_no_contact_info <- Projects_overview %>%
+  filter(is.na(PersonContactFirstName) | is.na(PersonContactLastName) | is.na(PersonContactEmail)) 
+
+table(projects_no_contact_info$ProjectStatus)
+
+
+
+
+
 #83 percent of projects had contact info (name and email)
 #PG&E and CEC were the only two program admins that were relatively consistent with providing contact info on their projects (name AND email)
 #SCE (n = 23) was more consistent in giving out names than SDG&E
@@ -321,7 +410,7 @@ projects_CEC_contact_info_by_org <- Projects_overview %>%
 #### PROJECTS DETAIL ####
 
 Projects_detail <- Projects_detail %>%
-  left_join(Projects_overview %>% select(Id, ProjectNo, ProgramAdminName, IsActive, ProjectStartDate, ProjectEndDate), by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
+  left_join(Projects_overview %>% select(Id, ProjectNo, ProjectName, ProgramAdminName, IsActive, ProjectStartDate, ProjectEndDate), by = c("ProjectId" = "Id", "ProjectNo" = "ProjectNo"))
 
 #bk check, this should be zero now
 duplicates <- Projects_detail %>% 
@@ -578,6 +667,14 @@ g2s_blank_by_org_status <- Projects_detail %>%
 #CEC  is the admin that has the most projects with no ways of getting to scale (~73% missing). SDG&E has no projects missing
 #Among those that are blank, the majority (90%) are no longer active
 
+#look closer at what they say for getting to scale 
+g2s <- Projects_detail %>%
+  filter(!is.na(GettingToScale))
+
+
+
+
+
 #KeyInnovations
 innovations_pct <- Projects_detail %>%
   filter(!is.na(KeyInnovations)) %>%
@@ -762,6 +859,22 @@ zero_expended_amount_by_org <- Finance_detail %>%
     percentage_zero = (zero_expended_funding / total_entries) * 100
   )
 
+
+#projects with zero expended funding
+
+zeroexpended <- Finance_detail %>% 
+  filter(FundsExpendedToDate == 0)
+
+
+zeroexpendedbutcommitted <- Finance_detail %>% 
+  filter(FundsExpendedToDate == 0 & CommitedFundingAmount >0)
+
+
+
+
+
+
+
 #The avg expended amount across all boards is $1,659,082. 
 #The highest avg expended amount when stratified by org is $2,422,829 (SCE)
 #13 percent reported 0 for expended funding
@@ -813,6 +926,19 @@ check_metric <- Projects_overview %>%
   filter(nomatch == TRUE) #this is the 1 id missing
 
 #### percent of projects reporting each impact (ElectricitySystemReliabilityImpacts:InformationDissemination) ####
+
+
+#all impacts 
+
+all_impacts_pct <- Projects_metric %>%
+  filter(!is.na(ElectricitySystemReliabilityImpacts) &
+           !is.na(ElectricitySystemSafetyImpacts) &
+           !is.na(EnviromentalImpactsNonGHG) & 
+           !is.na(EnergyImpacts) & 
+           !is.na(OtherImpacts))
+
+
+
 
 # ElectricitySystemReliabilityImpacts
 reli_impacts_pct <- Projects_metric %>%
@@ -888,6 +1014,15 @@ proj_benefits_pct <- Projects_metric %>%
 
 proj_benefits_pct_by_org <- stratify_admin_includeNA(Projects_metric,ProjectedProjectBenefits)
 
+proj_benefits_pct_by_yr_org <- year_stratify_admin_includeNA(Projects_metric,ProjectedProjectBenefits)
+
+write_xlsx(proj_benefits_pct_by_yr_org,"/Users/killingsworth/Documents/EPIC database/projected_project_benefits_start_date.xlsx")
+
+
+
+
+
+
 blank_proj_benefits_pct_by_org_status <- Projects_metric %>%
   filter(!is.na(ProjectedProjectBenefits)) %>%
   group_by(ProgramAdminName, IsActive_metric) %>%
@@ -907,7 +1042,13 @@ rp_benefits_pct <- Projects_metric %>%
     percentage = (n() / total) * 100
   )
 
+#by admin
 rp_benefits_pct_by_org <- stratify_admin_includeNA(Projects_metric,RatePayersBenefits)
+
+#by year
+rp_benefits_pct_by_yr_org <- year_stratify_admin_includeNA(Projects_metric,RatePayersBenefits)
+
+write_xlsx(rp_benefits_pct_by_yr_org,"/Users/killingsworth/Documents/EPIC database/ratepayer_benefits_start_date.xlsx")
 
 
 blank_rp_benefits_pct_by_org_status <- Projects_metric %>%
@@ -929,6 +1070,10 @@ community_benefits_pct <- Projects_metric %>%
   )
 
 community_benefits_pct_by_org <- stratify_admin_includeNA(Projects_metric,CommunityBenefitsDesc)
+community_benefits_pct_by_yr_org <- year_stratify_admin_includeNA(Projects_metric,CommunityBenefitsDesc)
+write_xlsx(community_benefits_pct_by_yr_org,"/Users/killingsworth/Documents/EPIC database/community_benefits_desc_start_date.xlsx")
+
+
 
 blank_community_benefits_pct_by_org_status <- Projects_metric %>%
   filter(!is.na(CommunityBenefitsDesc)) %>%
@@ -973,6 +1118,11 @@ infra_cb_pct <- Projects_metric %>%
 
 infra_cb_pct_by_org <- stratify_admin_includeNA(Projects_metric,InfrastructureCostBenefits)
 
+infra_cb_pct_by_yr_org <- year_stratify_admin_includeNA(Projects_metric,CommunityBenefitsDesc)
+write_xlsx(infra_cb_pct_by_yr_org,"/Users/killingsworth/Documents/EPIC database/infra_cb_start_date.xlsx")
+
+
+
 blank_infra_cb_pct_by_org_status <- Projects_metric %>%
   filter(!is.na(InfrastructureCostBenefits)) %>%
   group_by(ProgramAdminName, IsActive_metric) %>%
@@ -1016,6 +1166,12 @@ info_pct <- Projects_metric %>%
   )
 
 info_pct_by_org <- stratify_admin_includeNA(Projects_metric,InformationDissemination)
+info_dissemination_pct_by_yr_org <- year_stratify_admin_includeNA(Projects_metric,InformationDissemination)
+write_xlsx(info_dissemination_pct_by_yr_org,"/Users/killingsworth/Documents/EPIC database/information_dissemination_start_date.xlsx")
+
+
+
+
 
 
 blank_info_pct_by_org_status <- Projects_metric %>%
@@ -1050,19 +1206,19 @@ summary_isactive_match_metric <- view_metric %>%
 # Project Detail #
 
 #percent one or more barriers listed. Which projects have none, pull
-barriers_detail <- Projects_detail %>%
-  select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers) %>%
-  filter_at(vars(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), all_vars(!is.na(.) & . != "None" & . != "N/A" & . != "NA" & . != "n/a" & . != "TBD." & . != "None applicable / discussed" & . != "None applicable / discussed"))
-
-
-barriers_detail <- Projects_detail %>%
-  select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers) %>%
-  filter_at(vars(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), all_vars(!is.na(.) & . != "None" & . != "N/A" & . != "NA" & . != "n/a" & . != "TBD." & . != "None applicable / discussed" & . != "None applicable / discussed"))
+# barriers_detail <- Projects_detail %>%
+#   select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers) %>%
+#   filter_at(vars(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), all_vars(!is.na(.) & . != "None" & . != "N/A" & . != "NA" & . != "n/a" & . != "TBD." & . != "None applicable / discussed" & . != "None applicable / discussed"))
+# 
+# 
+# barriers_detail <- Projects_detail %>%
+#   select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers) %>%
+#   filter_at(vars(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), all_vars(!is.na(.) & . != "None" & . != "N/A" & . != "NA" & . != "n/a" & . != "TBD." & . != "None applicable / discussed" & . != "None applicable / discussed"))
 
 
 #BK code
 barriers_detail <- Projects_detail %>%
-  select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers, ProjectStartDate, ProjectEndDate) %>%
+  select(ProjectId, ProjectName, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers, ProjectStartDate, ProjectEndDate) %>%
   mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "None"))) %>%
   mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "N/A"))) %>%
   mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "NA"))) %>%
@@ -1072,19 +1228,8 @@ barriers_detail <- Projects_detail %>%
   mutate(across(c(TechnicalBarriers, MarketBarriers, PolicyAndRegulatoryBarriers), ~ na_if(., "None applicable / discussed"))) %>% 
   mutate(one_or_more_barrier = ifelse(!is.na(TechnicalBarriers)|!is.na(MarketBarriers)|!is.na(PolicyAndRegulatoryBarriers),1,0)) 
 
-projects_with_at_least_one_barrier <- barriers_detail %>%
-  filter(one_or_more_barrier == 1) %>%
-  mutate(projectstartdateclean = mdy(ProjectStartDate),
-         projectstartyear = year(projectstartdateclean)) %>% 
-  group_by(projectstartyear) %>% 
-  summarise(
-    n = n(),
-    total = nrow(barriers_detail),
-    percentage = (n() / total) * 100
-  )
 
-
-projects_with_at_least_one_barrier <- barriers_detail %>%
+start_date_projects_with_at_least_one_barrier <- barriers_detail %>%
   mutate(projectstartdateclean = mdy(ProjectStartDate),
          projectstartyear = year(projectstartdateclean)) %>%
   group_by(ProgramAdminName, projectstartyear) %>%
@@ -1103,15 +1248,13 @@ end_date_projects_with_at_least_one_barrier <- barriers_detail %>%
     total_projects = n(),
     percentage = (n_with_barrier / total_projects) * 100)
 
-write_xlsx(projects_with_at_least_one_barrier,"/Users/killingsworth/Documents/EPIC database/barriers_start_date.xlsx")
+write_xlsx(start_date_projects_with_at_least_one_barrier,"/Users/killingsworth/Documents/EPIC database/barriers_start_date.xlsx")
 write_xlsx(end_date_projects_with_at_least_one_barrier,"/Users/killingsworth/Documents/EPIC database/barriers_end_date.xlsx")
 
 
-  
-  
-total_projects_by_org <- barriers_detail %>%
-  group_by(ProgramAdminName) %>%
-  summarise(total = n())
+# total_projects_by_org <- barriers_detail %>%
+#   group_by(ProgramAdminName) %>%
+#   summarise(total = n())
 
 projects_with_at_least_one_barrier_by_org <- barriers_detail %>%
   filter(one_or_more_barrier == 1) %>%
@@ -1132,6 +1275,15 @@ projects_with_no_barriers <- barriers_detail %>%
     percentage = (n() / total) * 100
   )
 
+
+#pull projects that have no barriers 
+
+no_barriers_pull <- barriers_detail %>% 
+  filter(one_or_more_barrier == 0)
+
+write_xlsx(no_barriers_pull, "/Users/killingsworth/Documents/EPIC database/projects_with_no_barriers.xlsx")
+
+
 projects_with_no_barriers_by_org <- barriers_detail %>% 
   filter(one_or_more_barrier == 0) %>%
   group_by(ProgramAdminName) %>%
@@ -1144,7 +1296,7 @@ projects_with_no_barriers_by_org <- barriers_detail %>%
 
 ### percent one or more impacts listed. Which projects have none, pull ###
 impacts_detail <- Projects_metric %>%
-  select(ProjectId, ProgramAdminName, ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts) %>%
+  select(ProjectId, ProjectName, ProgramAdminName, ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts, ProjectStartDate, ProjectEndDate) %>%
   mutate(across(c(ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts), ~ na_if(., "None"))) %>%
   mutate(across(c(ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts), ~ na_if(., "N/A"))) %>%
   mutate(across(c(ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts), ~ na_if(., "NA"))) %>%
@@ -1154,7 +1306,7 @@ impacts_detail <- Projects_metric %>%
   mutate(across(c(ElectricitySystemReliabilityImpacts, ElectricitySystemSafetyImpacts, EnviromentalImpactsNonGHG, EnergyImpacts, OtherImpacts), ~ na_if(., "None applicable / discussed"))) %>% 
   mutate(one_or_more_impact = ifelse(!is.na(ElectricitySystemSafetyImpacts)|!is.na(ElectricitySystemReliabilityImpacts)|!is.na(EnviromentalImpactsNonGHG) | !is.na(EnergyImpacts)|!is.na(OtherImpacts),1,0)) 
 
-total_projects_by_org_impact <- impacts_detail %>%
+total_projects_by_org_impact <- impacts_detail %>% 
   group_by(ProgramAdminName) %>%
   summarise(total = n())
 
@@ -1177,6 +1329,33 @@ projects_with_at_least_one_impact_by_org <- impacts_detail %>%
   ungroup()
 
 
+
+start_date_projects_with_at_least_one_impact <- impacts_detail %>%
+  mutate(projectstartdateclean = mdy(ProjectStartDate),
+         projectstartyear = year(projectstartdateclean)) %>%
+  group_by(ProgramAdminName, projectstartyear) %>%
+  summarise(
+    n_with_impact = sum(one_or_more_impact == 1, na.rm = T),
+    total_projects = n(),
+    percentage = (n_with_impact / total_projects) * 100)
+
+
+end_date_projects_with_at_least_one_impact <- impacts_detail %>%
+  mutate(projectenddateclean = mdy(ProjectEndDate),
+         projectendyear = year(projectenddateclean)) %>%
+  group_by(ProgramAdminName, projectendyear) %>%
+  summarise(
+    n_with_impact = sum(one_or_more_impact == 1, na.rm = T),
+    total_projects = n(),
+    percentage = (n_with_impact / total_projects) * 100)
+
+#write these out 
+
+write_xlsx(start_date_projects_with_at_least_one_impact,"/Users/killingsworth/Documents/EPIC database/impacts_start_date.xlsx")
+write_xlsx(end_date_projects_with_at_least_one_impact,"/Users/killingsworth/Documents/EPIC database/impacts_end_date.xlsx")
+
+
+
 projects_with_no_impact <- impacts_detail %>% 
   filter(one_or_more_impact == 0) %>%
   summarise(
@@ -1184,6 +1363,13 @@ projects_with_no_impact <- impacts_detail %>%
     total = nrow(impacts_detail),
     percentage = (n() / total) * 100
   )
+
+
+no_impact_pull <- impacts_detail %>% 
+  filter(one_or_more_impact == 0)
+
+write_xlsx(no_impact_pull,"/Users/killingsworth/Documents/EPIC database/projects_with_no_impacts.xlsx")
+
 
 projects_with_no_impact_by_org <- impacts_detail %>% 
   filter(one_or_more_impact == 0) %>%
@@ -1195,29 +1381,7 @@ projects_with_no_impact_by_org <- impacts_detail %>%
   mutate(percentage = (n / total) * 100) %>%
   ungroup()
 
-###
-# tech_barriers <- Projects_detail %>%
-#   select(ProjectId, DetailedProjectDescription, ProgramAdminName, TechnicalBarriers) %>%
-#   filter(!is.na(TechnicalBarriers)) %>%
-#   filter(TechnicalBarriers != "None" & TechnicalBarriers != "N/A" & TechnicalBarriers != "NA" & 
-#            TechnicalBarriers != "n/a" & TechnicalBarriers != "TBD" & 
-#            TechnicalBarriers != "None applicable / discussed" & 
-#            TechnicalBarriers != "No such barriers are known.") %>%
-#   summarise(
-#     n = n(),
-#     total = nrow(Projects_detail),
-#     percentage = (n() / total) * 100
-#   )
-# 
-# tech_barriers_by_org <- stratify_admin_includeNA(Projects_detail,TechnicalBarriers)
-# 
-# no_tech_barriers_by_org <- no_tech_barriers %>%
-#   group_by(ProgramAdminName) %>%
-#   summarise(
-#     n = n(),
-#     total = nrow(no_tech_barriers),
-#     percentage = (n / total) * 100
-#   )
+
 
 
 ### Additional checks: [matched funds + committed funds] > [encumbered funds] &  >funds expended? ###
@@ -1238,4 +1402,8 @@ summary_budget_check_second <- view_budget_check_second %>%
     Mismatches = sum(!check, na.rm = TRUE),
     percentage_match = Matches/Total*100
   )
+
+
+
+
 
