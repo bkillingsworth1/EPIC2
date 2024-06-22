@@ -17,12 +17,33 @@ library(lubridate)
 # Projects_metric <- read_excel("/Users/dorji/Desktop/Projects/EPIC/EPIC Database Export May 2024.xlsx", sheet = "Project Metric")
 
 #bk 
-Projects_overview <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Projects") %>%
+Projects_overview <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024_updated.xlsx", sheet = "Projects") %>%
   select(-LongitudeX,-LatitudeY) %>% #there were 12 instances of duplicates that were matching all columns besides lat and long, removed
   distinct()
-Projects_detail <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Projects Detail")
-Finance_detail <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Finance Detail")
-Projects_metric <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024.xlsx", sheet = "Project Metric ")
+Projects_detail <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024_updated.xlsx", sheet = "Projects Detail")
+Finance_detail <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024_updated.xlsx", sheet = "Finance Detail")
+Projects_metric <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024_updated.xlsx", sheet = "Project Metric ")
+market_facilitation <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024_updated.xlsx", sheet = "TAB ADDED - Market Facil Lookup")
+
+
+# combine all tabs and add market facilitation identifier, write out (used separate tabs for checks)
+
+combined_tabs <- Projects_overview %>% 
+  left_join(Projects_detail %>% rename("IsActive_detail" = "IsActive"), by = c("Id" = "ProjectId", "ProjectNo")) %>% 
+  left_join(Projects_metric %>% rename("IsActive_metric" = "IsActive"), by = c("Id" = "ProjectId", "ProjectNo")) %>%
+  left_join(Finance_detail %>% rename("ContractAmount_finance" = "ContractAmount"), by = c("Id" = "ProjectId", "ProjectNo")) %>% 
+  mutate(market_facilitation_indicator = ifelse(ProjectNo %in% market_facilitation$`Agreement Number`,1,0))
+  
+write_xlsx(combined_tabs,"/Users/killingsworth/Documents/EPIC database/epic_combined_data.xlsx")
+
+  
+duplicates <- combined_tabs %>% 
+  group_by(Id, ProjectNo) %>% 
+  filter(n() > 1) %>% 
+  ungroup()
+
+
+
 
 
 #### bk function for admin stratification #### 
