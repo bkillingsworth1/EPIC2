@@ -24,6 +24,8 @@ Projects_detail <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC
 Finance_detail <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024_updated.xlsx", sheet = "Finance Detail")
 Projects_metric <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024_updated.xlsx", sheet = "Project Metric ")
 market_facilitation <- read_excel("/Users/killingsworth/Documents/EPIC database/EPIC Database Export May 2024_updated.xlsx", sheet = "TAB ADDED - Market Facil Lookup")
+project_type <- read_excel("/Users/killingsworth/Documents/EPIC database/Export with project type.xlsx")
+
 
 
 # combine all tabs and add market facilitation identifier, write out (used separate tabs for checks)
@@ -32,9 +34,15 @@ combined_tabs <- Projects_overview %>%
   left_join(Projects_detail %>% rename("IsActive_detail" = "IsActive"), by = c("Id" = "ProjectId", "ProjectNo")) %>% 
   left_join(Projects_metric %>% rename("IsActive_metric" = "IsActive"), by = c("Id" = "ProjectId", "ProjectNo")) %>%
   left_join(Finance_detail %>% rename("ContractAmount_finance" = "ContractAmount"), by = c("Id" = "ProjectId", "ProjectNo")) %>% 
-  mutate(market_facilitation_indicator = ifelse(ProjectNo %in% market_facilitation$`Agreement Number`,1,0))
+  mutate(market_facilitation_indicator = ifelse(ProjectNo %in% market_facilitation$`Agreement Number`,1,0)) %>% 
+  left_join(project_type %>% select(PROJECT_ID, PROJECT_NUMBER, PROJECT_TYPE_PROJECT_TYPE_ID), by = c("Id" = "PROJECT_ID", "ProjectNo" = "PROJECT_NUMBER")) %>% 
+  mutate(PROJECT_TYPE_PROJECT_TYPE_ID = case_when(
+    PROJECT_TYPE_PROJECT_TYPE_ID == 1 ~ "Applied Research and Development",
+    PROJECT_TYPE_PROJECT_TYPE_ID == 2 ~ "Technology Demonstration and Deployment",
+    PROJECT_TYPE_PROJECT_TYPE_ID == 3 ~ "Market Facilitation",
+    TRUE ~ "other/unknown"))
   
-write_xlsx(combined_tabs,"/Users/killingsworth/Documents/EPIC database/epic_combined_data.xlsx")
+write_xlsx(combined_tabs,"/Users/killingsworth/Documents/EPIC database/epic_combined_data_with_project_type.xlsx")
 
   
 duplicates <- combined_tabs %>% 
