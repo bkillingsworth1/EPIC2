@@ -59,7 +59,7 @@ duplicates <- combined_tabs %>%
 stratify_admin_mean <- function(data,variable){
   output <- data %>% 
     filter(!is.na(ProgramAdminName),
-           !is.na({{variable}})) %>% 
+           !is.na({{variable}})) %>%
     group_by(ProgramAdminName) %>% 
     summarise(average = mean({{variable}}, na.rm = TRUE))
   return(output)
@@ -309,12 +309,15 @@ projects_start_end <- Projects_overview %>%
     percentage = (n() / total) * 100
   )
 
+
+
 projects_start_end_by_org <- Projects_overview %>%
   group_by(ProgramAdminName) %>%
   mutate(total_projects = n()) %>%  # Total projects per ProgramAdminName
   filter(!is.na(ProjectStartDate) & !is.na(ProjectEndDate)) %>%  # Filter for active and closed projects
   summarise(n = n(), total_projects = first(total_projects), .groups = 'drop') %>%  # Count and keep total projects
   mutate(pct = n / total_projects * 100)
+
 
 
 # look at dates themselves and see if they are reasonable 
@@ -373,10 +376,11 @@ head(Projects_overview$ProjectEndDate)
 # Assuming the date format is "MM/DD/YYYY" or similar, specify the format
 average_project_duration <- Projects_overview %>%
   filter(!is.na(ProjectStartDate) & !is.na(ProjectEndDate)) %>%
+  filter(ProjectStatus == "Closed") %>% 
   mutate(ProjectStartDate = as.Date(ProjectStartDate, format = "%m/%d/%Y"),
          ProjectEndDate = as.Date(ProjectEndDate, format = "%m/%d/%Y"),
-         ProjectDuration = as.numeric(ProjectEndDate - ProjectStartDate)/7)
-  #%>% summarise(AverageDuration = mean(ProjectDuration, na.rm = TRUE))
+         ProjectDuration = as.numeric(ProjectEndDate - ProjectStartDate)/7) %>% 
+  summarise(AverageDuration = mean(ProjectDuration, na.rm = TRUE))
   
 admin_average_project_duration <- stratify_admin_mean(average_project_duration,ProjectDuration)
 
@@ -926,6 +930,38 @@ summary_matched_amounts <- view_amount %>%
 
 #82 percent of the Contract Amounts in both tabs match
 #Ask BK if he thinks this is right
+
+
+#proportion of projects with match funding by administrator?
+avg_expended_amount_by_org <- Finance_detail %>%
+  filter(!is.na(FundsExpendedToDate) & FundsExpendedToDate != 0) %>%
+  group_by(ProgramAdminName) %>%
+  summarise(AverageExpendedAmount = mean(FundsExpendedToDate, na.rm = TRUE))
+
+finance_detail_match <- Finance_detail %>% 
+  mutate(matchfundingind = ifelse(MatchFunding>0,1,0))
+
+match_funding <- stratify_admin_percent(finance_detail_match,matchfundingind)
+
+
+
+
+stratify_admin_percent <- function(data,variable){
+  output <- data %>% 
+    filter(!is.na(ProgramAdminName),
+           !is.na({{variable}})) %>% 
+    group_by(ProgramAdminName, {{variable}}) %>%
+    summarise(n = n(), .groups = 'drop') %>%
+    group_by(ProgramAdminName) %>%  # Regroup by ProgramAdminName
+    mutate(pct = n / sum(n) * 100)
+  return(output)
+}
+
+
+
+
+
+
 
 #### PROJECT METRIC ####
 
